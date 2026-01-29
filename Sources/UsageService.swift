@@ -50,8 +50,10 @@ final class UsageService: ObservableObject {
         switch result {
         case .failure(let error):
             self.error = error.localizedDescription
+            Log.error("OAuth login failed: \(error.localizedDescription)")
             return
         case .success(let pair):
+            Log.info("OAuth login succeeded, expires_in=\(pair.expiresIn)s")
             handleLoginSuccess(pair)
         }
     }
@@ -86,25 +88,30 @@ final class UsageService: ObservableObject {
             self.usage = usageData
             self.error = nil
             self.needsLogin = false
+            Log.info("Usage fetched: 5h=\(usageData.fiveHour.utilization)%, 7d=\(usageData.sevenDay.utilization)%")
         } catch is TokenStoreError {
             self.needsLogin = true
             self.error = nil
+            Log.info("No token found, login required")
         } catch UsageServiceError.unauthorized {
-            // Token invalid, try refresh once
             self.cachedAccessToken = nil
             self.tokenExpiresAt = nil
+            Log.error("Token unauthorized, attempting refresh")
             do {
                 let token = try await refreshAndRetry()
                 let usageData = try await requestUsage(token: token)
                 self.usage = usageData
                 self.error = nil
+                Log.info("Refresh succeeded, usage: 5h=\(usageData.fiveHour.utilization)%")
             } catch {
                 self.needsLogin = true
                 self.error = "Session expired. Please login again."
                 TokenStore.clear()
+                Log.error("Refresh failed: \(error.localizedDescription)")
             }
         } catch {
             self.error = error.localizedDescription
+            Log.error("fetchUsage failed: \(error.localizedDescription)")
         }
     }
 
@@ -187,6 +194,10 @@ final class UsageService: ObservableObject {
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw UsageServiceError.usageFetchFailed(0)
+        }
+
+        if let rawBody = String(data: data, encoding: .utf8) {
+            Log.info("Usage API HTTP \(httpResponse.statusCode): \(rawBody)")
         }
 
         if httpResponse.statusCode == 401 {
