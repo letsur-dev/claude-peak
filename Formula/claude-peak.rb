@@ -6,7 +6,6 @@ class ClaudePeak < Formula
   license "MIT"
 
   depends_on :macos
-  depends_on xcode: ["15.0", :build]
 
   def install
     system "swift", "build", "-c", "release", "--disable-sandbox"
