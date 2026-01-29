@@ -1,8 +1,8 @@
 class ClaudePeak < Formula
   desc "Claude Max subscription usage monitor for macOS menu bar"
   homepage "https://github.com/letsur-dev/claude-peak"
-  url "https://github.com/letsur-dev/claude-peak.git", branch: "main"
-  version "1.0.0"
+  url "https://github.com/letsur-dev/claude-peak/archive/refs/tags/v1.0.0.tar.gz"
+  sha256 "81a3ce9dc84891922b91fed19b7e5b263498733033c0b5a111603d2f68201562"
   license "MIT"
 
   depends_on :macos
