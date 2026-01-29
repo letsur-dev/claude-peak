@@ -6,9 +6,9 @@ Claude Max 구독의 usage limit을 실시간으로 모니터링하는 macOS 메
 
 ## Screenshots
 
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/905f9841-cde4-4211-afa7-08909e36de15" width="300"></video>
-</div>
+<p align="center">
+  <img src="assets/demo.gif" alt="Claude Peak demo" width="300">
+</p>
 
 <p align="center">
   <img src="assets/screenshot.png" alt="Claude Peak screenshot" width="400">
