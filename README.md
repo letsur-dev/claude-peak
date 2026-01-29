@@ -6,6 +6,10 @@ A macOS menu bar app that monitors Claude Max subscription usage limits in real 
 
 ## Screenshots
 
+<p align="center">
+  <img src="assets/screenshot.png" alt="Claude Peak screenshot" width="400">
+</p>
+
 The menu bar displays the current 5-hour utilization (%) and time until reset. Click to see detailed usage.
 When tokens are being consumed, a flame icon animates based on activity level.
 

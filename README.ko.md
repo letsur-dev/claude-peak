@@ -6,6 +6,10 @@ Claude Max 구독의 usage limit을 실시간으로 모니터링하는 macOS 메
 
 ## Screenshots
 
+<p align="center">
+  <img src="assets/screenshot.png" alt="Claude Peak screenshot" width="400">
+</p>
+
 메뉴바에 현재 5-hour 사용률(%)과 reset 남은 시간이 표시되며, 클릭하면 상세 사용량을 확인할 수 있다.
 토큰을 사용 중이면 불꽃 아이콘이 활동량에 따라 애니메이션된다.
 
