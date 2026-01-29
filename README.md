@@ -1,104 +1,106 @@
+[한국어](README.ko.md)
+
 # Claude Peak
 
-Claude Max 구독의 usage limit을 실시간으로 모니터링하는 macOS 메뉴바 앱.
+A macOS menu bar app that monitors Claude Max subscription usage limits in real time.
 
 ## Screenshots
 
-메뉴바에 현재 5-hour 사용률(%)과 reset 남은 시간이 표시되며, 클릭하면 상세 사용량을 확인할 수 있다.
-토큰을 사용 중이면 불꽃 아이콘이 활동량에 따라 애니메이션된다.
+The menu bar displays the current 5-hour utilization (%) and time until reset. Click to see detailed usage.
+When tokens are being consumed, a flame icon animates based on activity level.
 
-## 기능
+## Features
 
-- **메뉴바 표시**: 5-hour utilization %, reset 남은 시간 (설정에서 변경 가능)
-- **실시간 불꽃 애니메이션**: `~/.claude/projects/` JSONL 로그를 감시하여 토큰 활동량에 따라 불꽃이 타오름
-- **상세 Popover**: 5-hour, 7-day(All models), 7-day(Sonnet) 사용량 + reset 타이머
-- **설정**: 메뉴바 표시 형식 (% only / time only / both), 갱신 주기 (1분/5분/10분)
-- **자동 갱신**: 설정 가능한 폴링 간격 (기본 5분)
-- **OAuth 인증**: 브라우저 기반 PKCE 인증, refresh token 자동 갱신
+- **Menu bar display**: 5-hour utilization %, time until reset (configurable in settings)
+- **Real-time flame animation**: Monitors `~/.claude/projects/` JSONL logs and animates flames based on token activity
+- **Detailed popover**: 5-hour, 7-day (All models), 7-day (Sonnet) usage + reset timers
+- **Settings**: Menu bar display format (% only / time only / both), refresh interval (1min / 5min / 10min)
+- **Auto-refresh**: Configurable polling interval (default 5min)
+- **OAuth authentication**: Browser-based PKCE auth with automatic refresh token renewal
 
-## 기술 스택
+## Tech Stack
 
 - Swift + SwiftUI
 - SPM (Swift Package Manager)
 - macOS 13+ (`NSStatusItem` + `NSPopover`)
-- OAuth 2.0 PKCE (로컬 HTTP 서버로 callback 수신)
+- OAuth 2.0 PKCE (local HTTP server for callback)
 
-## 프로젝트 구조
+## Project Structure
 
 ```
 claude-usage-limit/
 ├── Package.swift
 ├── Sources/
-│   ├── App.swift              # @main, NSStatusItem + NSPopover + 불꽃 렌더링
-│   ├── UsageView.swift        # popover UI + 설정 화면
-│   ├── UsageService.swift     # Usage API 호출 + 토큰 관리
-│   ├── OAuthService.swift     # OAuth PKCE 플로우 (브라우저 인증)
-│   ├── KeychainHelper.swift   # 토큰 파일 저장/읽기 (~/.config/claude-peak/tokens.json)
-│   ├── Settings.swift         # 앱 설정 (UserDefaults 저장)
-│   ├── ActivityMonitor.swift  # JSONL 로그 감시 → 실시간 토큰 활동량 계산
-│   └── Models.swift           # UsageResponse 등 API 모델
+│   ├── App.swift              # @main, NSStatusItem + NSPopover + flame rendering
+│   ├── UsageView.swift        # Popover UI + settings screen
+│   ├── UsageService.swift     # Usage API calls + token management
+│   ├── OAuthService.swift     # OAuth PKCE flow (browser auth)
+│   ├── KeychainHelper.swift   # Token file storage (~/.config/claude-peak/tokens.json)
+│   ├── Settings.swift         # App settings (UserDefaults)
+│   ├── ActivityMonitor.swift  # JSONL log monitoring → real-time token activity
+│   └── Models.swift           # UsageResponse and other API models
 ├── Formula/
 │   └── claude-peak.rb         # Homebrew formula
 ├── Resources/
-│   └── Info.plist             # LSUIElement = true (Dock 숨김)
-└── build.sh                   # .app 번들 빌드 + ~/Applications 설치
+│   └── Info.plist             # LSUIElement = true (hide from Dock)
+└── build.sh                   # Build .app bundle + install to ~/Applications
 ```
 
-## 설치
+## Installation
 
-### Homebrew (추천)
+### Homebrew (Recommended)
 
 ```bash
 brew tap letsur-dev/claude-peak https://github.com/letsur-dev/claude-peak.git
 brew install claude-peak
 
-# 실행 (첫 실행 시 ~/Applications에 자동 링크)
+# Launch (auto-links to ~/Applications on first run)
 claude-peak
 ```
 
-### 소스에서 빌드
+### Build from Source
 
 ```bash
 git clone https://github.com/letsur-dev/claude-peak.git
 cd claude-peak
 ./build.sh
 
-# 실행
+# Launch
 open ~/Applications/Claude\ Peak.app
 ```
 
-## 인증
+## Authentication
 
-첫 실행 시 "Login with Claude" 버튼 → 브라우저에서 Claude 계정 로그인 → 자동 토큰 저장.
+On first launch, click "Login with Claude" → sign in with your Claude account in the browser → tokens are saved automatically.
 
-### 인증 플로우
+### Auth Flow
 
-1. 앱이 로컬 HTTP 서버 시작 (랜덤 포트, IPv6)
-2. 브라우저로 `claude.ai/oauth/authorize` 열기 (PKCE code_challenge 포함)
-3. 사용자 인증 후 `http://localhost:PORT/callback?code=xxx`로 리다이렉트
-4. 앱이 code를 받아 `platform.claude.com/v1/oauth/token`에서 토큰 교환
-5. `~/.config/claude-peak/tokens.json`에 저장 (0600 권한)
+1. App starts a local HTTP server (random port, IPv6)
+2. Opens `claude.ai/oauth/authorize` in browser (with PKCE code_challenge)
+3. After authentication, redirects to `http://localhost:PORT/callback?code=xxx`
+4. App exchanges the code for tokens at `platform.claude.com/v1/oauth/token`
+5. Tokens saved to `~/.config/claude-peak/tokens.json` (0600 permissions)
 
-### 토큰 갱신
+### Token Refresh
 
-- access token 만료 5분 전 자동 refresh
-- refresh 실패 시 재로그인 안내
+- Automatically refreshes 5 minutes before access token expiry
+- Prompts re-login on refresh failure
 
-## 불꽃 애니메이션
+## Flame Animation
 
-`~/.claude/projects/**/*.jsonl` 파일을 2초마다 스캔하여 최근 30초간 토큰 처리량(tokens/sec)을 계산한다.
+Scans `~/.claude/projects/**/*.jsonl` files every 2 seconds and calculates token throughput (tokens/sec) over the last 30 seconds.
 
-| 활동량 | 불꽃 | 애니메이션 속도 |
-|--------|------|----------------|
-| 0 tps | 🔥 (작은 불씨, 정적) | 없음 |
-| > 0 tps | 🔥 × 1 | 0.5초 |
-| > 100 tps | 🔥 × 2 | 0.35초 |
-| > 500 tps | 🔥 × 3 | 0.2초 |
-| > 1000 tps | 🔥 × 4 | 0.12초 |
+| Activity | Flame | Animation Speed |
+|----------|-------|-----------------|
+| 0 tps | (small ember, static) | None |
+| > 0 tps | × 1 | 0.5s |
+| > 100 tps | × 2 | 0.35s |
+| > 500 tps | × 3 | 0.2s |
+| > 1000 tps | × 4 | 0.12s |
 
 ## API
 
-### Usage 조회
+### Usage Query
 
 ```
 GET https://api.anthropic.com/api/oauth/usage
@@ -108,7 +110,7 @@ Headers:
   User-Agent: claude-code/2.0.32
 ```
 
-응답 예시:
+Example response:
 
 ```json
 {
@@ -119,8 +121,8 @@ Headers:
 }
 ```
 
-- `utilization`: 0~100 (퍼센트)
-- `resets_at`: ISO 8601 타임스탬프 또는 null
+- `utilization`: 0–100 (percentage)
+- `resets_at`: ISO 8601 timestamp or null
 
 ### Token Refresh
 
@@ -136,13 +138,13 @@ Content-Type: application/json
 }
 ```
 
-## 개발 과정에서 발견한 것들
+## Lessons Learned
 
-- **Keychain 토큰 만료 문제**: Claude Code는 매 세션마다 브라우저 OAuth로 재인증하며, Keychain의 refresh token이 무효화될 수 있다. 따라서 앱 자체 OAuth 플로우가 필요.
-- **`claude setup-token`의 한계**: inference-only 토큰(`user:inference` scope만)을 발급하므로 usage API(`user:profile` 필요)에 사용 불가.
-- **OAuth redirect URI**: 반드시 `http://localhost:PORT/callback` 형식이어야 함. `127.0.0.1`이나 `/oauth/callback` 경로는 거부됨.
-- **IPv6**: macOS에서 `localhost`는 `::1`(IPv6)로 해석될 수 있으므로 IPv6 소켓 필요.
-- **Token exchange**: `state` 파라미터가 authorize와 token exchange 양쪽에 필요.
-- **utilization 값**: API 응답의 utilization은 0~100 정수 (0~1 소수가 아님).
-- **필드명**: API 응답은 `resets_at` (복수형 s).
-- **JSONL 토큰 로그**: Claude Code는 `~/.claude/projects/` 아래에 세션별 JSONL 파일을 생성하며, 각 라인의 `message.usage`에 토큰 사용량이 기록됨.
+- **Keychain token expiration**: Claude Code re-authenticates via browser OAuth each session, which can invalidate Keychain refresh tokens. A standalone OAuth flow is needed.
+- **`claude setup-token` limitations**: Issues inference-only tokens (`user:inference` scope only), which cannot access the usage API (requires `user:profile`).
+- **OAuth redirect URI**: Must be `http://localhost:PORT/callback` exactly. `127.0.0.1` or `/oauth/callback` paths are rejected.
+- **IPv6**: On macOS, `localhost` may resolve to `::1` (IPv6), so an IPv6 socket is required.
+- **Token exchange**: The `state` parameter is required for both the authorize and token exchange requests.
+- **Utilization values**: The API returns utilization as 0–100 integers (not 0–1 decimals).
+- **Field naming**: The API response uses `resets_at` (with plural 's').
+- **JSONL token logs**: Claude Code creates per-session JSONL files under `~/.claude/projects/`, with token usage recorded in `message.usage` of each line.
