@@ -122,6 +122,10 @@ struct UsageView: View {
                 Text("\(String(format: "%.0f", activity.tokensPerSecond)) tps")
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundColor(.secondary)
+                Text(tpsMessage)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(tpsMessageColor)
+                    .italic()
             }
 
             if !service.needsLogin {
@@ -283,6 +287,39 @@ struct UsageView: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var tpsMessage: String {
+        let tps = activity.tokensPerSecond
+        if settings.flameMode == .madmax {
+            let flames = tps <= 0 ? 0 : min(10, Int(tps / 10000) + 1)
+            switch flames {
+            case 0:     return "Light it up. If you can."
+            case 1...2: return "That's it? Pathetic."
+            case 3...4: return "Warming up..."
+            case 5...6: return "Now we're cooking."
+            case 7...8: return "FEEL THE BURN"
+            case 9:     return "ONE MORE. DO IT."
+            case 10:    return "WITNESS ME"
+            default:    return ""
+            }
+        }
+        if tps <= 0 { return "" }
+        if tps > 60000 { return "Full throttle" }
+        if tps > 30000 { return "Heating up" }
+        return ""
+    }
+
+    private var tpsMessageColor: Color {
+        let tps = activity.tokensPerSecond
+        if settings.flameMode == .madmax {
+            let flames = tps <= 0 ? 0 : min(10, Int(tps / 10000) + 1)
+            if flames >= 9 { return .red }
+            if flames >= 5 { return .orange }
+            if flames >= 1 { return .secondary }
+        }
+        if tps > 60000 { return .orange }
+        return .secondary
     }
 
     private func colorForPercentage(_ pct: Int) -> Color {
