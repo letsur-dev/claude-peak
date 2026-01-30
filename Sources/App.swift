@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var service: UsageService!
     private var settings: AppSettings!
     private var activity: ActivityMonitor!
+    private var updateChecker: UpdateChecker!
     private var animationTimer: Timer?
     private var displayTimer: Timer?
     private var frameIndex = 0
@@ -28,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         service = UsageService()
         settings = AppSettings.shared
         activity = ActivityMonitor()
+        updateChecker = UpdateChecker()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
@@ -35,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentSize = NSSize(width: 280, height: 400)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
-            rootView: UsageView(service: service, settings: settings, activity: activity)
+            rootView: UsageView(service: service, settings: settings, activity: activity, updateChecker: updateChecker)
                 .frame(width: 280)
         )
 
@@ -67,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         service.startPolling()
         activity.start()
+        Task { await updateChecker.check() }
     }
 
     @objc private func togglePopover() {
