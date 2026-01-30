@@ -3,6 +3,7 @@ import SwiftUI
 struct UsageView: View {
     @ObservedObject var service: UsageService
     @ObservedObject var settings: AppSettings
+    @ObservedObject var activity: ActivityMonitor
     @State private var showSettings = false
 
     var body: some View {
@@ -98,6 +99,9 @@ struct UsageView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                Text("\(String(format: "%.0f", activity.tokensPerSecond)) tps")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.secondary)
             }
 
             if !service.needsLogin {
