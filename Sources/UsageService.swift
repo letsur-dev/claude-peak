@@ -17,6 +17,7 @@ final class UsageService: ObservableObject {
     private var cachedAccessToken: String?
     private var tokenExpiresAt: Date?
     private var pollingTimer: Timer?
+    private var resetTimer: Timer?
 
     let oauthService = OAuthService()
 
@@ -50,10 +51,28 @@ final class UsageService: ObservableObject {
         startPolling()
     }
 
+    private func scheduleResetFetch(_ usage: UsageResponse) {
+        resetTimer?.invalidate()
+        resetTimer = nil
+
+        guard let resetDate = usage.fiveHour.resetDate else { return }
+        let delay = resetDate.timeIntervalSinceNow
+        guard delay > 0 else { return }
+
+        resetTimer = Timer.scheduledTimer(withTimeInterval: delay + 2, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                Log.info("5-hour reset time reached, fetching fresh usage")
+                await self?.fetchUsage()
+            }
+        }
+    }
+
     func logout() {
         TokenStore.clear()
         cachedAccessToken = nil
         tokenExpiresAt = nil
+        resetTimer?.invalidate()
+        resetTimer = nil
         usage = nil
         error = nil
         needsLogin = true
@@ -102,6 +121,7 @@ final class UsageService: ObservableObject {
             self.error = nil
             self.needsLogin = false
             cacheUsage(usageData)
+            scheduleResetFetch(usageData)
             Log.info("Usage fetched: 5h=\(usageData.fiveHour.utilization)%, 7d=\(usageData.sevenDay.utilization)%")
         } catch is TokenStoreError {
             self.needsLogin = true
@@ -117,6 +137,7 @@ final class UsageService: ObservableObject {
                 self.usage = usageData
                 self.error = nil
                 cacheUsage(usageData)
+                scheduleResetFetch(usageData)
                 Log.info("Refresh succeeded, usage: 5h=\(usageData.fiveHour.utilization)%")
             } catch {
                 self.needsLogin = true
