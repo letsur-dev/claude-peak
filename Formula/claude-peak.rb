@@ -1,15 +1,10 @@
 class ClaudePeak < Formula
   desc "Claude Max subscription usage monitor for macOS menu bar"
   homepage "https://github.com/letsur-dev/claude-peak"
-  url "https://github.com/letsur-dev/claude-peak/archive/refs/tags/v1.3.4.tar.gz"
-  sha256 "7c906023fefa2f44179450663ea55c914948db96ff12da60c2a00af0c630e817"
+  url "https://github.com/letsur-dev/claude-peak/archive/refs/tags/v1.3.5.tar.gz"
+  sha256 "db3123b38a1e0a153a66252b16e6d14316873b973f07703e851e3b5d96005380"
   license "MIT"
 
-  bottle do
-    root_url "https://github.com/letsur-dev/claude-peak/releases/download/v1.3.4"
-    sha256 cellar: :any_skip_relocation, arm64_sequoia: "bf62a9304f25ea98a3c2381995ad12c3687260ea3e90e3d5f09e415377230d26"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe: "2b47ce0e9237ffab1d3b4805890ee9739c7daa5a1a20d0be365b94f0ce5414ee"
-  end
 
 
 
