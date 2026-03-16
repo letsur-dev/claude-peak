@@ -26,6 +26,8 @@ class ClaudePeak < Formula
     # Create a launcher script in bin/
     (bin/"claude-peak").write <<~EOS
       #!/bin/bash
+      osascript -e 'quit app "Claude Peak"' 2>/dev/null || true
+      sleep 1
       APP="#{app_bundle}"
       DEST="$HOME/Applications/Claude Peak.app"
       mkdir -p "$HOME/Applications"
@@ -37,6 +39,8 @@ class ClaudePeak < Formula
 
   def post_install
     system "bash", "-c", <<~EOS
+      osascript -e 'quit app "Claude Peak"' 2>/dev/null || true
+      sleep 1
       APP="#{prefix}/Claude Peak.app"
       DEST="$HOME/Applications/Claude Peak.app"
       mkdir -p "$HOME/Applications"
