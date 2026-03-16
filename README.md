@@ -1,5 +1,9 @@
 [한국어](README.ko.md)
 
+<p align="center">
+  <img src="assets/icon.png" alt="Claude Peak" width="128">
+</p>
+
 # Claude Peak
 
 A macOS menu bar app that monitors Claude Max usage limits — with real-time flame animation that burns hotter as you consume more tokens.

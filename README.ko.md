@@ -1,5 +1,9 @@
 [English](README.md)
 
+<p align="center">
+  <img src="assets/icon.png" alt="Claude Peak" width="128">
+</p>
+
 # Claude Peak
 
 Claude Max 사용량 한도를 모니터링하는 macOS 메뉴바 앱 — 토큰을 소모할수록 더 뜨겁게 타오르는 실시간 불꽃 애니메이션.
