@@ -35,11 +35,12 @@ class ClaudePeak < Formula
       #!/bin/bash
       osascript -e 'quit app "Claude Peak"' 2>/dev/null || true
       sleep 1
-      APP="#{app_bundle}"
       DEST="$HOME/Applications/Claude Peak.app"
+      if [ -e "$DEST" ]; then
+        osascript -e "tell application \\"Finder\\" to delete POSIX file \\"$DEST\\"" 2>/dev/null || rm -rf "$DEST"
+      fi
       mkdir -p "$HOME/Applications"
-      rm -rf "$DEST"
-      cp -R "$APP" "$DEST"
+      cp -R "#{app_bundle}" "$DEST"
       open "$DEST"
     EOS
   end
@@ -48,11 +49,12 @@ class ClaudePeak < Formula
     system "bash", "-c", <<~EOS
       osascript -e 'quit app "Claude Peak"' 2>/dev/null || true
       sleep 1
-      APP="#{prefix}/Claude Peak.app"
       DEST="$HOME/Applications/Claude Peak.app"
+      if [ -e "$DEST" ]; then
+        osascript -e "tell application \\"Finder\\" to delete POSIX file \\"$DEST\\"" 2>/dev/null || rm -rf "$DEST"
+      fi
       mkdir -p "$HOME/Applications"
-      rm -rf "$DEST"
-      cp -R "$APP" "$DEST"
+      cp -R "#{prefix}/Claude Peak.app" "$DEST"
     EOS
   end
 
