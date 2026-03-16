@@ -1,7 +1,7 @@
 [English](README.md)
 
 <p align="center">
-  <img src="assets/icon.png" alt="Claude Peak" width="128">
+  <img src="assets/icon.png" alt="Claude Peak" width="128" style="border-radius: 22%;">
 </p>
 
 # Claude Peak
