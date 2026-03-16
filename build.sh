@@ -17,6 +17,7 @@ mkdir -p "${APP_DIR}/Contents/Resources"
 
 cp "${BUILD_DIR}/ClaudePeak" "${APP_DIR}/Contents/MacOS/ClaudePeak"
 cp Resources/Info.plist "${APP_DIR}/Contents/Info.plist"
+cp Resources/AppIcon.icns "${APP_DIR}/Contents/Resources/AppIcon.icns"
 
 echo "Installing to ${INSTALL_DIR}..."
 mkdir -p "${INSTALL_DIR}"
