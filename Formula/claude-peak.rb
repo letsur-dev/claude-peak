@@ -28,37 +28,37 @@ class ClaudePeak < Formula
     # Create a launcher script in bin/
     (bin/"claude-peak").write <<~EOS
       #!/bin/bash
+      APP="#{app_bundle}"
+      DEST="$HOME/Applications/Claude Peak.app"
       osascript -e 'quit app "Claude Peak"' 2>/dev/null || true
       sleep 1
-      DEST="$HOME/Applications/Claude Peak.app"
-      if [ -e "$DEST" ]; then
-        osascript -e "tell application \\"Finder\\" to delete POSIX file \\"$DEST\\"" 2>/dev/null || rm -rf "$DEST"
-      fi
       mkdir -p "$HOME/Applications"
-      cp -R "#{app_bundle}" "$DEST"
-      open "$DEST"
+      rm -rf "$DEST" 2>/dev/null
+      cp -R "$APP" "$DEST" 2>/dev/null
+      open "${DEST:-$APP}"
     EOS
   end
 
   def post_install
-    system "bash", "-c", <<~EOS
-      osascript -e 'quit app "Claude Peak"' 2>/dev/null || true
-      sleep 1
-      DEST="$HOME/Applications/Claude Peak.app"
-      if [ -e "$DEST" ]; then
-        osascript -e "tell application \\"Finder\\" to delete POSIX file \\"$DEST\\"" 2>/dev/null || rm -rf "$DEST"
-      fi
-      mkdir -p "$HOME/Applications"
-      cp -R "#{prefix}/Claude Peak.app" "$DEST"
-    EOS
+    dest = File.expand_path("~/Applications/Claude Peak.app")
+    src = prefix/"Claude Peak.app"
+    return unless src.exist?
+    FileUtils.mkdir_p(File.expand_path("~/Applications"))
+    if File.exist?(dest)
+      FileUtils.rm_rf(dest) rescue nil
+    end
+    FileUtils.cp_r(src.to_s, dest) rescue nil
   end
 
   def caveats
     <<~EOS
-      Claude Peak has been installed to ~/Applications/.
-      Open from Spotlight, Raycast, or run `claude-peak`.
+      To complete installation, run:
+        claude-peak
 
-      First launch requires OAuth login via browser.
+      This copies the app to ~/Applications/ (for Spotlight/Raycast)
+      and launches it. First launch requires OAuth login via browser.
+
+      After `brew upgrade`, run `claude-peak` again to update the app.
     EOS
   end
 end
