@@ -50,6 +50,16 @@ struct UsageBucket: Codable {
         return "\(minutes)m"
     }
 
+    var resetDateString: String {
+        guard let resetDate = resetDate else { return "—" }
+        guard resetDate.timeIntervalSinceNow > 0 else { return "now" }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "M/d(EEE) HH:mm"
+        return formatter.string(from: resetDate)
+    }
+
     var percentage: Int {
         min(100, Int(utilization))
     }

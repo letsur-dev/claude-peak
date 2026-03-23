@@ -272,12 +272,14 @@ struct UsageView: View {
         sectionHeader("Weekly Limits")
         usageBar(
             label: "All models",
-            bucket: usage.sevenDay
+            bucket: usage.sevenDay,
+            showDate: true
         )
         if let sonnet = usage.sevenDaySonnet {
             usageBar(
                 label: "Sonnet only",
-                bucket: sonnet
+                bucket: sonnet,
+                showDate: true
             )
         }
 
@@ -305,7 +307,7 @@ struct UsageView: View {
             .textCase(.uppercase)
     }
 
-    private func usageBar(label: String, bucket: UsageBucket) -> some View {
+    private func usageBar(label: String, bucket: UsageBucket, showDate: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(label)
@@ -330,7 +332,7 @@ struct UsageView: View {
             }
             .frame(height: 8)
 
-            Text("Resets in \(bucket.timeUntilReset)")
+            Text(showDate ? "Resets at \(bucket.resetDateString)" : "Resets in \(bucket.timeUntilReset)")
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundColor(.secondary)
         }
