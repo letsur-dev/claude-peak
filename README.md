@@ -35,17 +35,33 @@ When tokens are being consumed, a flame icon animates based on activity level.
 
 Enable MADMAX mode and push your token throughput to the limit. Each flame tier unlocks a new challenge message:
 
-| Flames | tps | Message |
-|--------|-----|---------|
-| 🔥 × 0 | 0 | *Light it up. If you can.* |
-| 🔥 × 1–2 | 1 – 19,999 | *That's it? Pathetic.* |
-| 🔥 × 3–4 | 20,000 – 39,999 | *Warming up...* |
-| 🔥 × 5–6 | 40,000 – 59,999 | *Now we're cooking.* |
-| 🔥 × 7–8 | 60,000 – 79,999 | *FEEL THE BURN* |
-| 🔥 × 9 | 80,000 – 89,999 | *ONE MORE. DO IT.* |
-| 🔥 × 10 | 90,000+ | ***WITNESS ME*** |
+| Flames | tps | EN | 한국어 |
+|--------|-----|----|--------|
+| 🔥 × 0 | 0 | *Light it up. If you can.* | *불 좀 붙혀봐. 춥다야.* |
+| 🔥 × 1–2 | 1 – 19,999 | *That's it? Pathetic.* | *겨우 이거?* |
+| 🔥 × 3–4 | 20,000 – 39,999 | *Warming up...* | *슬슬 가볼까* |
+| 🔥 × 5–6 | 40,000 – 59,999 | *Now we're cooking.* | *제법인데?* |
+| 🔥 × 7–8 | 60,000 – 79,999 | *FEEL THE BURN* | *미쳤다!!!* |
+| 🔥 × 9 | 80,000 – 89,999 | *ONE MORE. DO IT.* | *거의 다 왔다!!!* |
+| 🔥 × 10 | 90,000+ | ***WITNESS ME*** | ***나를 기억해!!!*** |
 
 > **Can you hit 10 flames?** Most people never get past *"That's it? Pathetic."*
+
+### Weekly Pace
+
+Shows how your weekly usage is trending based on elapsed time vs utilization:
+
+`pace = actual utilization / (elapsed days ÷ 7 × 100)`
+
+| Pace | EN | 한국어 |
+|------|----|--------|
+| < 0.3 | *Go absolutely wild* | *마구 난사해도 됨* |
+| < 0.6 | *Plenty of room* | *여유 넘침* |
+| < 0.85 | *Cruising nicely* | *적당히 쓰는 중* |
+| < 1.1 | *Right on pace* | *딱 맞는 페이스* |
+| < 1.4 | *Getting warm* | *슬슬 걱정된다잉* |
+| < 1.7 | *Burning hot* | *이러다 거덜남* |
+| ≥ 1.7 | *Hit the brakes!* | *거덜직전* |
 
 ### Flame Modes
 
@@ -87,7 +103,9 @@ Four modes available in settings:
 - **Remote server monitoring** — Aggregate token activity from remote machines (e.g. via Tailscale) into a single flame display
 - **Menu bar display** — 5-hour utilization %, time until reset (configurable)
 - **Detailed popover** — 5-hour, 7-day (All models), 7-day (Sonnet) usage + reset timers
-- **Settings** — Display format, refresh interval (1/5/10 min), flame mode, remote server
+- **Weekly pace indicator** — Shows whether you're on track, have room to spare, or burning too fast
+- **Korean / English messages** — Toggle message language in settings
+- **Settings** — Display format, refresh interval (1/5/10 min), flame mode, message language, remote server
 - **OAuth PKCE** — Browser-based auth with automatic token refresh
 
 ## Installation

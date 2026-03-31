@@ -122,6 +122,19 @@ struct UsageView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
+                Text("MESSAGE LANGUAGE")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Picker("", selection: $settings.language) {
+                    ForEach(AppLanguage.allCases, id: \.self) { lang in
+                        Text(lang.label).tag(lang)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
                 Text("REMOTE SERVER")
                     .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.secondary)
@@ -270,6 +283,12 @@ struct UsageView: View {
         Divider()
 
         sectionHeader("Weekly Limits")
+        if let msg = usage.sevenDay.paceMessage(language: settings.language) {
+            Text(msg)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundColor(paceColor(for: usage.sevenDay))
+                .italic()
+        }
         usageBar(
             label: "All models",
             bucket: usage.sevenDay,
@@ -353,22 +372,23 @@ struct UsageView: View {
 
     private var tpsMessage: String {
         let tps = activity.tokensPerSecond
+        let ko = settings.language == .ko
         if settings.flameMode == .madmax {
             let flames = tps <= 0 ? 0 : min(10, Int(tps / 10000) + 1)
             switch flames {
-            case 0:     return "Light it up. If you can."
-            case 1...2: return "That's it? Pathetic."
-            case 3...4: return "Warming up..."
-            case 5...6: return "Now we're cooking."
-            case 7...8: return "FEEL THE BURN"
-            case 9:     return "ONE MORE. DO IT."
-            case 10:    return "WITNESS ME"
+            case 0:     return ko ? "불 좀 붙혀봐. 춥다야." : "Light it up. If you can."
+            case 1...2: return ko ? "겨우 이거?" : "That's it? Pathetic."
+            case 3...4: return ko ? "슬슬 가볼까" : "Warming up..."
+            case 5...6: return ko ? "제법인데?" : "Now we're cooking."
+            case 7...8: return ko ? "미쳤다!!!" : "FEEL THE BURN"
+            case 9:     return ko ? "거의 다 왔다!!!" : "ONE MORE. DO IT."
+            case 10:    return ko ? "나를 기억해!!!" : "WITNESS ME"
             default:    return ""
             }
         }
         if tps <= 0 { return "" }
-        if tps > 60000 { return "Full throttle" }
-        if tps > 30000 { return "Heating up" }
+        if tps > 60000 { return ko ? "풀로 땡기는 중" : "Full throttle" }
+        if tps > 30000 { return ko ? "예열 중" : "Heating up" }
         return ""
     }
 
@@ -388,5 +408,13 @@ struct UsageView: View {
         if pct >= 80 { return .red }
         if pct >= 50 { return .orange }
         return .green
+    }
+
+    private func paceColor(for bucket: UsageBucket) -> Color {
+        guard let ratio = bucket.paceRatio else { return .secondary }
+        if ratio < 0.6 { return .green }
+        if ratio < 1.1 { return .secondary }
+        if ratio < 1.4 { return .orange }
+        return .red
     }
 }
