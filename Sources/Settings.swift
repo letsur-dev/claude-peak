@@ -34,6 +34,18 @@ enum FlameMode: String, CaseIterable {
     }
 }
 
+enum AppLanguage: String, CaseIterable {
+    case en = "en"
+    case ko = "ko"
+
+    var label: String {
+        switch self {
+        case .en: return "EN"
+        case .ko: return "한"
+        }
+    }
+}
+
 enum PollingInterval: Int, CaseIterable {
     case five = 300
     case ten = 600
@@ -68,6 +80,9 @@ final class AppSettings: ObservableObject {
     @Published var remotePort: Int {
         didSet { UserDefaults.standard.set(remotePort, forKey: "remotePort") }
     }
+    @Published var language: AppLanguage {
+        didSet { UserDefaults.standard.set(language.rawValue, forKey: "language") }
+    }
 
     private init() {
         if let raw = UserDefaults.standard.string(forKey: "menuBarDisplay"),
@@ -101,5 +116,12 @@ final class AppSettings: ObservableObject {
 
         let port = UserDefaults.standard.integer(forKey: "remotePort")
         self.remotePort = port > 0 ? port : 3200
+
+        if let raw = UserDefaults.standard.string(forKey: "language"),
+           let value = AppLanguage(rawValue: raw) {
+            self.language = value
+        } else {
+            self.language = .en
+        }
     }
 }
