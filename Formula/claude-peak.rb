@@ -5,6 +5,12 @@ class ClaudePeak < Formula
   sha256 "3b54260bff7aef27ec3787e061fe7bab1b3c8d06ff2d2060264b5cce635d6035"
   license "MIT"
 
+  bottle do
+    root_url "https://github.com/letsur-dev/claude-peak/releases/download/v1.4.4"
+    sha256 cellar: :any_skip_relocation, arm64_sequoia: "c70edf08a78674e7efe8b8bb09bf9df223e2fd3deaf2f1c7659c7b6f7769f906"
+    sha256 cellar: :any_skip_relocation, arm64_tahoe: "45231a28401f8bdadc3e89bdc30eae4b04d1abbb4b5d262d5948e8373f1740a5"
+  end
+
 
 
 
