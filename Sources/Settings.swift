@@ -83,6 +83,12 @@ final class AppSettings: ObservableObject {
     @Published var language: AppLanguage {
         didSet { UserDefaults.standard.set(language.rawValue, forKey: "language") }
     }
+    @Published var mainAccountLabel: String {
+        didSet { UserDefaults.standard.set(mainAccountLabel, forKey: "mainAccountLabel") }
+    }
+    @Published var subAccountLabel: String {
+        didSet { UserDefaults.standard.set(subAccountLabel, forKey: "subAccountLabel") }
+    }
 
     private init() {
         if let raw = UserDefaults.standard.string(forKey: "menuBarDisplay"),
@@ -123,5 +129,8 @@ final class AppSettings: ObservableObject {
         } else {
             self.language = .en
         }
+
+        self.mainAccountLabel = UserDefaults.standard.string(forKey: "mainAccountLabel") ?? "Main"
+        self.subAccountLabel = UserDefaults.standard.string(forKey: "subAccountLabel") ?? "Sub"
     }
 }

@@ -198,18 +198,32 @@ struct UsageView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("2ND ACCOUNT")
+                Text("ACCOUNT LABELS")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    TextField("Main", text: $settings.mainAccountLabel)
+                        .font(.system(.caption, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Sub", text: $settings.subAccountLabel)
+                        .font(.system(.caption, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("SUB ACCOUNT")
                     .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.secondary)
                 if secondaryService.needsLogin {
-                    Button("Login 2nd Account") {
+                    Button("Login Sub Account") {
                         secondaryService.oauthService.startLogin { result in
                             secondaryService.handleLoginResult(result)
                         }
                     }
                     .buttonStyle(.borderless)
                 } else {
-                    Button("Logout 2nd") {
+                    Button("Logout Sub") {
                         secondaryService.logout()
                     }
                     .buttonStyle(.borderless)
