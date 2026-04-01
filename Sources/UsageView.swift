@@ -2,6 +2,7 @@ import SwiftUI
 
 struct UsageView: View {
     @ObservedObject var service: UsageService
+    @ObservedObject var secondaryService: UsageService
     @ObservedObject var settings: AppSettings
     @ObservedObject var activity: ActivityMonitor
     @ObservedObject var updateChecker: UpdateChecker
@@ -52,6 +53,7 @@ struct UsageView: View {
         .frame(width: 280)
         .onAppear {
             service.startPolling()
+            secondaryService.startPolling()
             if flipTimer == nil {
                 flipTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
                     Task { @MainActor in
@@ -189,6 +191,26 @@ struct UsageView: View {
                     Button("Logout") {
                         service.logout()
                         showSettings = false
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundColor(.red)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("2ND ACCOUNT")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                if secondaryService.needsLogin {
+                    Button("Login 2nd Account") {
+                        secondaryService.oauthService.startLogin { result in
+                            secondaryService.handleLoginResult(result)
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                } else {
+                    Button("Logout 2nd") {
+                        secondaryService.logout()
                     }
                     .buttonStyle(.borderless)
                     .foregroundColor(.red)

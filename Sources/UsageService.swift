@@ -19,17 +19,24 @@ final class UsageService: ObservableObject {
     private var pollingTimer: Timer?
     private var resetTimer: Timer?
 
+    let profile: String
     let oauthService = OAuthService()
 
+    init(profile: String = "default") {
+        self.profile = profile
+    }
+
+    private var cacheKey: String { "cachedUsage-\(profile)" }
+
     private func loadCachedUsage() {
-        guard let data = UserDefaults.standard.data(forKey: "cachedUsage"),
+        guard let data = UserDefaults.standard.data(forKey: cacheKey),
               let cached = try? JSONDecoder().decode(UsageResponse.self, from: data) else { return }
         self.usage = cached
     }
 
     private func cacheUsage(_ usage: UsageResponse) {
         if let data = try? JSONEncoder().encode(usage) {
-            UserDefaults.standard.set(data, forKey: "cachedUsage")
+            UserDefaults.standard.set(data, forKey: cacheKey)
         }
     }
 
@@ -68,7 +75,7 @@ final class UsageService: ObservableObject {
     }
 
     func logout() {
-        TokenStore.clear()
+        TokenStore.clear(profile: profile)
         cachedAccessToken = nil
         tokenExpiresAt = nil
         resetTimer?.invalidate()
@@ -97,7 +104,7 @@ final class UsageService: ObservableObject {
             expiresAt: Int64((Date().timeIntervalSince1970 + Double(pair.expiresIn)) * 1000)
         )
         do {
-            try TokenStore.save(tokens)
+            try TokenStore.save(tokens, profile: profile)
             self.cachedAccessToken = pair.accessToken
             self.tokenExpiresAt = Date().addingTimeInterval(Double(pair.expiresIn))
             self.needsLogin = false
@@ -142,7 +149,7 @@ final class UsageService: ObservableObject {
             } catch {
                 self.needsLogin = true
                 self.error = "Session expired. Please login again."
-                TokenStore.clear()
+                TokenStore.clear(profile: profile)
                 Log.error("Refresh failed: \(error.localizedDescription)")
             }
         } catch UsageServiceError.usageFetchFailed(429) {
@@ -167,7 +174,7 @@ final class UsageService: ObservableObject {
             return token
         }
 
-        let stored = try TokenStore.load()
+        let stored = try TokenStore.load(profile: profile)
         let expiry = Date(timeIntervalSince1970: TimeInterval(stored.expiresAt) / 1000)
 
         if expiry.timeIntervalSinceNow > 300 {
@@ -185,7 +192,7 @@ final class UsageService: ObservableObject {
     }
 
     private func refreshAndRetry() async throws -> String {
-        let stored = try TokenStore.load()
+        let stored = try TokenStore.load(profile: profile)
         guard let refreshToken = stored.refreshToken, !refreshToken.isEmpty else {
             throw TokenStoreError.noToken
         }
@@ -223,7 +230,7 @@ final class UsageService: ObservableObject {
             refreshToken: refreshResp.refresh_token ?? refreshToken,
             expiresAt: Int64((Date().timeIntervalSince1970 + Double(refreshResp.expires_in)) * 1000)
         )
-        try TokenStore.save(newTokens)
+        try TokenStore.save(newTokens, profile: profile)
 
         self.cachedAccessToken = refreshResp.access_token
         self.tokenExpiresAt = Date().addingTimeInterval(Double(refreshResp.expires_in))

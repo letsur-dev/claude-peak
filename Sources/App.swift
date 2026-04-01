@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var service: UsageService!
+    private var secondaryService: UsageService!
     private var settings: AppSettings!
     private var activity: ActivityMonitor!
     private var updateChecker: UpdateChecker!
@@ -27,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.info("Claude Peak launched")
         service = UsageService()
+        secondaryService = UsageService(profile: "secondary")
         settings = AppSettings.shared
         activity = ActivityMonitor()
         updateChecker = UpdateChecker()
@@ -37,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentSize = NSSize(width: 280, height: 400)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
-            rootView: UsageView(service: service, settings: settings, activity: activity, updateChecker: updateChecker)
+            rootView: UsageView(service: service, secondaryService: secondaryService, settings: settings, activity: activity, updateChecker: updateChecker)
                 .frame(width: 280)
         )
 
@@ -68,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }.store(in: &cancellables)
 
         service.startPolling()
+        secondaryService.startPolling()
         activity.start()
         Task { await updateChecker.check() }
     }
@@ -79,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             Task { await updateChecker.check() }
             Task { await service.fetchUsage() }
+            Task { await secondaryService.fetchUsage() }
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
