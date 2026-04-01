@@ -7,6 +7,7 @@ final class UsageService: ObservableObject {
     @Published var isLoading = false
     @Published var needsLogin = false
     @Published var usageDelta: Double = 0 // change per poll
+    @Published var email: String?
 
     private let clientId = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     private let tokenUrl = "https://platform.claude.com/v1/oauth/token"
@@ -43,6 +44,9 @@ final class UsageService: ObservableObject {
     func startPolling() {
         guard pollingTimer == nil else { return }
         loadCachedUsage()
+        if let stored = try? TokenStore.load(profile: profile) {
+            self.email = stored.email
+        }
         Task { await fetchUsage() }
         let interval = TimeInterval(AppSettings.shared.pollingInterval.rawValue)
         pollingTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
@@ -101,7 +105,8 @@ final class UsageService: ObservableObject {
         let tokens = StoredTokens(
             accessToken: pair.accessToken,
             refreshToken: pair.refreshToken,
-            expiresAt: Int64((Date().timeIntervalSince1970 + Double(pair.expiresIn)) * 1000)
+            expiresAt: Int64((Date().timeIntervalSince1970 + Double(pair.expiresIn)) * 1000),
+            email: pair.email
         )
         do {
             try TokenStore.save(tokens, profile: profile)

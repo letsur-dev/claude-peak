@@ -4,6 +4,7 @@ struct StoredTokens: Codable {
     var accessToken: String
     var refreshToken: String?
     var expiresAt: Int64 // milliseconds since epoch
+    var email: String?
 }
 
 enum TokenStore {

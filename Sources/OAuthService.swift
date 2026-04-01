@@ -95,6 +95,12 @@ final class OAuthService: ObservableObject {
             throw OAuthError.tokenExchangeFailed("HTTP \(httpResponse.statusCode): \(body)")
         }
 
+        var email: String?
+        if let rawJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let account = rawJson["account"] as? [String: Any] {
+            email = account["email_address"] as? String
+        }
+
         struct TokenResponse: Codable {
             let access_token: String
             let refresh_token: String?
@@ -105,7 +111,8 @@ final class OAuthService: ObservableObject {
         return TokenPair(
             accessToken: tokenResp.access_token,
             refreshToken: tokenResp.refresh_token,
-            expiresIn: tokenResp.expires_in ?? 3600
+            expiresIn: tokenResp.expires_in ?? 3600,
+            email: email
         )
     }
 
@@ -125,6 +132,7 @@ struct TokenPair {
     let accessToken: String
     let refreshToken: String?
     let expiresIn: Int
+    let email: String?
 }
 
 enum OAuthError: LocalizedError {

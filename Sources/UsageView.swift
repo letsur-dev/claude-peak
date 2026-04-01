@@ -321,15 +321,25 @@ struct UsageView: View {
             Divider()
         }
 
-        sectionHeader("Current Session")
+        if secondaryService.usage != nil {
+            HStack {
+                sectionHeader(service.email ?? settings.mainAccountLabel)
+                if let plan = service.accountInfo?.planLabel {
+                    Spacer()
+                    Text(plan)
+                        .font(.system(.caption2, design: .monospaced))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.15))
+                        .cornerRadius(4)
+                }
+            }
+        }
         usageBar(
             label: "5-hour limit",
             bucket: usage.fiveHour
         )
 
-        Divider()
-
-        sectionHeader("Weekly Limits")
         paceLabel(for: usage.sevenDay)
         usageBar(
             label: "All models",
@@ -342,6 +352,34 @@ struct UsageView: View {
                 bucket: sonnet,
                 showDate: true
             )
+        }
+
+        if let secondUsage = secondaryService.usage {
+            Divider()
+
+            HStack {
+                sectionHeader(secondaryService.email ?? settings.subAccountLabel)
+                if let plan = secondaryService.accountInfo?.planLabel {
+                    Spacer()
+                    Text(plan)
+                        .font(.system(.caption2, design: .monospaced))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.15))
+                        .cornerRadius(4)
+                }
+            }
+            usageBar(label: "5-hour limit", bucket: secondUsage.fiveHour)
+            paceLabel(for: secondUsage.sevenDay)
+            usageBar(label: "All models", bucket: secondUsage.sevenDay, showDate: true)
+            if let sonnet = secondUsage.sevenDaySonnet {
+                usageBar(label: "Sonnet only", bucket: sonnet, showDate: true)
+            }
+
+        } else if !secondaryService.needsLogin && secondaryService.isLoading {
+            Divider()
+            sectionHeader("\(settings.subAccountLabel) Account")
+            ProgressView().controlSize(.small)
         }
 
         if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {

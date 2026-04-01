@@ -178,13 +178,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let sub = secondaryService.usage
+        let mainTime = usage.fiveHour.timeUntilReset
+        let subTime = sub?.fiveHour.timeUntilReset
+        let sameTime = sub != nil && mainTime == subTime
+
         switch settings.menuBarDisplay {
         case .percentOnly:
-            button.title = " \(usage.fiveHour.percentage)%"
+            let main = "\(usage.fiveHour.percentage)%"
+            button.title = sub != nil ? " \(main) / \(sub!.fiveHour.percentage)%" : " \(main)"
         case .timeOnly:
-            button.title = " \(usage.fiveHour.timeUntilReset)"
+            if let sub = sub {
+                button.title = sameTime ? " \(mainTime)" : " \(mainTime) / \(sub.fiveHour.timeUntilReset)"
+            } else {
+                button.title = " \(mainTime)"
+            }
         case .both:
-            button.title = " \(usage.fiveHour.percentage)% · \(usage.fiveHour.timeUntilReset)"
+            if let sub = sub {
+                if sameTime {
+                    button.title = " \(usage.fiveHour.percentage)% / \(sub.fiveHour.percentage)% · \(mainTime)"
+                } else {
+                    button.title = " \(usage.fiveHour.percentage)% \(mainTime) / \(sub.fiveHour.percentage)% \(sub.fiveHour.timeUntilReset)"
+                }
+            } else {
+                button.title = " \(usage.fiveHour.percentage)% · \(mainTime)"
+            }
         }
     }
 
