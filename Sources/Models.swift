@@ -71,9 +71,8 @@ struct UsageBucket: Codable {
         guard timeUntil > 0 else { return nil }
         let totalWindow: Double = 7 * 86400
         let elapsed = totalWindow - timeUntil
-        guard elapsed > 3600 else { return nil } // need at least 1h of data
-        let expectedUtilization = (elapsed / totalWindow) * 100
-        guard expectedUtilization > 0 else { return nil }
+        guard elapsed > 0 else { return nil }
+        let expectedUtilization = max((elapsed / totalWindow) * 100, 5.0)
         return utilization / expectedUtilization
     }
 
@@ -95,6 +94,45 @@ struct UsageBucket: Codable {
         if ratio < 1.4 { return "Getting warm" }
         if ratio < 1.7 { return "Burning hot" }
         return "Hit the brakes!"
+    }
+
+    func actionMessage(language: AppLanguage) -> String? {
+        guard let resetDate = resetDate else { return nil }
+        let timeUntil = resetDate.timeIntervalSinceNow
+        guard timeUntil > 0 else { return nil }
+        let remaining = 100.0 - utilization
+        let daysLeft = timeUntil / 86400
+        let hoursLeft = timeUntil / 3600
+        let ko = language == .ko
+
+        // Urgent: reset imminent, budget wasted
+        if hoursLeft < 1 && remaining > 5 {
+            return ko ? "\(Int(remaining))% 버린다! 지금 당장!" : "\(Int(remaining))% wasted! Use it NOW!"
+        }
+        if hoursLeft < 6 && remaining > 10 {
+            return ko ? "\(Int(remaining))% 남았는데 곧 리셋! 태워라" : "\(Int(remaining))% left, reset soon! Burn it"
+        }
+        if hoursLeft < 24 && remaining > 20 {
+            return ko ? "내일 리셋인데 \(Int(remaining))% 남음. 써!" : "\(Int(remaining))% left, resets tomorrow. Use it!"
+        }
+
+        // Normal pace-based advice
+        guard let ratio = paceRatio else { return nil }
+        if daysLeft <= 0 { return nil }
+        let dailyBudget = remaining / daysLeft
+        let todayTarget = min(100, Int(utilization + dailyBudget))
+        let todayLimit = max(0, Int(utilization + dailyBudget * 0.5))
+
+        if ratio < 0.6 {
+            return ko ? "오늘 \(todayTarget)%까지 OK" : "Today up to \(todayTarget)% is fine"
+        }
+        if ratio < 1.1 {
+            return ko ? "이 페이스 유지하면 딱" : "Keep this pace"
+        }
+        if ratio < 1.7 {
+            return ko ? "오늘은 \(todayLimit)% 이하로" : "Stay under \(todayLimit)% today"
+        }
+        return ko ? "오늘은 쉬는 게..." : "Maybe take a break today..."
     }
 
     func paceColor() -> String {

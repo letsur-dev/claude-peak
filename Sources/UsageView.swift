@@ -6,6 +6,7 @@ struct UsageView: View {
     @ObservedObject var activity: ActivityMonitor
     @ObservedObject var updateChecker: UpdateChecker
     @State private var showSettings = false
+    @State private var showAction = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -283,12 +284,7 @@ struct UsageView: View {
         Divider()
 
         sectionHeader("Weekly Limits")
-        if let msg = usage.sevenDay.paceMessage(language: settings.language) {
-            Text(msg)
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundColor(paceColor(for: usage.sevenDay))
-                .italic()
-        }
+        paceLabel(for: usage.sevenDay)
         usageBar(
             label: "All models",
             bucket: usage.sevenDay,
@@ -301,13 +297,6 @@ struct UsageView: View {
                 showDate: true
             )
         }
-
-        Divider()
-
-        sectionHeader("Extra Usage")
-        Text(usage.extraUsage.isEnabled ? "Enabled" : "Disabled")
-            .font(.system(.body, design: .monospaced))
-            .foregroundColor(usage.extraUsage.isEnabled ? .green : .secondary)
 
         if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
             HStack {
@@ -408,6 +397,38 @@ struct UsageView: View {
         if pct >= 80 { return .red }
         if pct >= 50 { return .orange }
         return .green
+    }
+
+    @ViewBuilder
+    private func paceLabel(for bucket: UsageBucket) -> some View {
+        let pace = bucket.paceMessage(language: settings.language)
+        let action = bucket.actionMessage(language: settings.language)
+        if pace != nil || action != nil {
+            ZStack {
+                if let msg = showAction ? action ?? pace : pace ?? action {
+                    Text(msg)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundColor(paceColor(for: bucket))
+                        .italic()
+                        .rotation3DEffect(.degrees(showAction ? 0 : 0), axis: (x: 1, y: 0, z: 0))
+                        .id(showAction ? "action" : "pace")
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .opacity)
+                        ))
+                }
+            }
+            .animation(.easeInOut(duration: 0.4), value: showAction)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onAppear {
+                guard action != nil && pace != nil else { return }
+                Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
+                    Task { @MainActor in
+                        showAction.toggle()
+                    }
+                }
+            }
+        }
     }
 
     private func paceColor(for bucket: UsageBucket) -> Color {
