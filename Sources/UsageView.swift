@@ -7,6 +7,7 @@ struct UsageView: View {
     @ObservedObject var updateChecker: UpdateChecker
     @State private var showSettings = false
     @State private var showAction = false
+    @State private var flipTimer: Timer?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -51,6 +52,15 @@ struct UsageView: View {
         .frame(width: 280)
         .onAppear {
             service.startPolling()
+            if flipTimer == nil {
+                flipTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
+                    Task { @MainActor in
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            showAction.toggle()
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -403,31 +413,17 @@ struct UsageView: View {
     private func paceLabel(for bucket: UsageBucket) -> some View {
         let pace = bucket.paceMessage(language: settings.language)
         let action = bucket.actionMessage(language: settings.language)
-        if pace != nil || action != nil {
-            ZStack {
-                if let msg = showAction ? action ?? pace : pace ?? action {
-                    Text(msg)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundColor(paceColor(for: bucket))
-                        .italic()
-                        .rotation3DEffect(.degrees(showAction ? 0 : 0), axis: (x: 1, y: 0, z: 0))
-                        .id(showAction ? "action" : "pace")
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .move(edge: .top).combined(with: .opacity)
-                        ))
-                }
-            }
-            .animation(.easeInOut(duration: 0.4), value: showAction)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .onAppear {
-                guard action != nil && pace != nil else { return }
-                Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
-                    Task { @MainActor in
-                        showAction.toggle()
-                    }
-                }
-            }
+        let msg = showAction ? (action ?? pace) : (pace ?? action)
+        if let msg = msg {
+            Text(msg)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundColor(paceColor(for: bucket))
+                .italic()
+                .id(msg)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                    removal: .move(edge: .top).combined(with: .opacity)
+                ))
         }
     }
 
