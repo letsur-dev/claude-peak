@@ -108,6 +108,8 @@ Four modes available in settings:
 - **Settings** — Display format, refresh interval (1/5/10 min), flame mode, message language, remote server
 - **OAuth PKCE** — Browser-based auth with automatic token refresh
 
+> **Note:** Extra Usage display was removed in v1.4.5 to keep the UI clean. If you'd like it back, [open an issue](https://github.com/letsur-dev/claude-peak/issues).
+
 ## Installation
 
 ### Homebrew (Recommended)
