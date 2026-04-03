@@ -63,6 +63,18 @@ Shows how your weekly usage is trending based on elapsed time vs utilization:
 | < 1.7 | *Burning hot* | *이러다 거덜남* |
 | ≥ 1.7 | *Hit the brakes!* | *거덜직전* |
 
+The pace message flips every 3 seconds with an **action suggestion**:
+
+| Situation | EN | 한국어 |
+|-----------|----|----|
+| Under pace | *Today up to X% is fine* | *오늘 X%까지 OK* |
+| On pace | *Keep this pace* | *이 페이스 유지하면 딱* |
+| Over pace | *Stay under X% today* | *오늘은 X% 이하로* |
+| Way over | *Maybe take a break today...* | *오늘은 쉬는 게...* |
+| < 24h left, 20%+ remaining | *X% left, resets tomorrow. Use it!* | *내일 리셋인데 X% 남음. 써!* |
+| < 6h left, 10%+ remaining | *X% left, reset soon! Burn it* | *X% 남았는데 곧 리셋! 태워라* |
+| < 1h left, 5%+ remaining | *X% wasted! Use it NOW!* | *X% 버린다! 지금 당장!* |
+
 ### Flame Modes
 
 Four modes available in settings:

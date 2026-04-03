@@ -63,6 +63,18 @@ MADMAX 모드를 켜고 토큰 처리량의 한계를 밀어봐. 불꽃 단계�
 | < 1.7 | *Burning hot* | *이러다 거덜남* |
 | ≥ 1.7 | *Hit the brakes!* | *거덜직전* |
 
+페이스 메시지는 3초마다 **행동 제안**과 번갈아 표시됩니다:
+
+| 상황 | EN | 한국어 |
+|------|----|----|
+| 여유 | *Today up to X% is fine* | *오늘 X%까지 OK* |
+| 적당 | *Keep this pace* | *이 페이스 유지하면 딱* |
+| 위험 | *Stay under X% today* | *오늘은 X% 이하로* |
+| 거덜 | *Maybe take a break today...* | *오늘은 쉬는 게...* |
+| 리셋 24시간 내, 20%↑ 남음 | *X% left, resets tomorrow. Use it!* | *내일 리셋인데 X% 남음. 써!* |
+| 리셋 6시간 내, 10%↑ 남음 | *X% left, reset soon! Burn it* | *X% 남았는데 곧 리셋! 태워라* |
+| 리셋 1시간 내, 5%↑ 남음 | *X% wasted! Use it NOW!* | *X% 버린다! 지금 당장!* |
+
 ### 불꽃 모드
 
 설정에서 네 가지 모드 선택 가능:
