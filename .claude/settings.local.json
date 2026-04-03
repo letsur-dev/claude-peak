@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(ssh amos@100.73.228.37 'cd ~/Documents/letsur/claude-peak/Resources && python3 -m http.server 8888 &>/dev/null &' 2>&1)",
-      "Bash(scp amos@100.73.228.37:~/Documents/letsur/claude-peak/Resources/AppIcon.iconset/icon_512x512.png /tmp/peak_flame_preview.png 2>&1)"
+      "Bash(scp amos@100.73.228.37:~/Documents/letsur/claude-peak/Resources/AppIcon.iconset/icon_512x512.png /tmp/peak_flame_preview.png 2>&1)",
+      "Bash(ssh:*)"
     ]
   }
 }

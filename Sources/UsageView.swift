@@ -393,10 +393,9 @@ struct UsageView: View {
     }
 
     private func sectionHeader(_ title: String) -> some View {
-        Text(title)
+        Text(title.contains("@") ? title : title.uppercased())
             .font(.system(.caption, design: .monospaced))
             .foregroundColor(.secondary)
-            .textCase(.uppercase)
     }
 
     private func usageBar(label: String, bucket: UsageBucket, showDate: Bool = false) -> some View {

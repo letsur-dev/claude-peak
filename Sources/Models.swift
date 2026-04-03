@@ -1,35 +1,22 @@
 import Foundation
 
-// MARK: - Claude Code Credentials (plan detection)
+// MARK: - Account Info
 
-struct ClaudeCredentials {
-    let subscriptionType: String?
+struct AccountInfo {
+    let email: String?
     let rateLimitTier: String?
+    let billingType: String?
 
     var planLabel: String? {
-        guard let tier = rateLimitTier else {
-            return subscriptionType?.capitalized
-        }
+        guard let tier = rateLimitTier else { return nil }
         switch tier {
         case "default_claude_max_20x": return "Max 20x"
         case "default_claude_max_5x": return "Max 5x"
         case "default_claude_max": return "Max"
         case "default_claude_pro": return "Pro"
         case "default_claude_ai": return "Free"
-        default: return subscriptionType?.capitalized
+        default: return nil
         }
-    }
-
-    static func load() -> ClaudeCredentials? {
-        let path = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/.credentials.json")
-        guard let data = try? Data(contentsOf: path),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let oauth = json["claudeAiOauth"] as? [String: Any] else { return nil }
-        return ClaudeCredentials(
-            subscriptionType: oauth["subscriptionType"] as? String,
-            rateLimitTier: oauth["rateLimitTier"] as? String
-        )
     }
 }
 

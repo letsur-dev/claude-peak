@@ -8,10 +8,12 @@ final class UsageService: ObservableObject {
     @Published var needsLogin = false
     @Published var usageDelta: Double = 0 // change per poll
     @Published var email: String?
+    @Published var accountInfo: AccountInfo?
 
     private let clientId = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     private let tokenUrl = "https://platform.claude.com/v1/oauth/token"
     private let usageUrl = "https://api.anthropic.com/api/oauth/usage"
+    private let accountUrl = "https://api.anthropic.com/api/oauth/account"
     private let userAgent = "claude-code/2.0.32"
     private let scopes = "user:profile user:inference"
 
@@ -87,6 +89,8 @@ final class UsageService: ObservableObject {
         usage = nil
         error = nil
         needsLogin = true
+        email = nil
+        accountInfo = nil
     }
 
     func handleLoginResult(_ result: Result<TokenPair, Error>) {
@@ -134,6 +138,7 @@ final class UsageService: ObservableObject {
             self.needsLogin = false
             cacheUsage(usageData)
             scheduleResetFetch(usageData)
+            if accountInfo == nil { await fetchAccountInfo(token: token) }
             Log.info("Usage fetched: 5h=\(usageData.fiveHour.utilization)%, 7d=\(usageData.sevenDay.utilization)%")
         } catch is TokenStoreError {
             self.needsLogin = true
@@ -267,6 +272,28 @@ final class UsageService: ObservableObject {
         }
 
         return try JSONDecoder().decode(UsageResponse.self, from: data)
+    }
+
+    private func fetchAccountInfo(token: String) async {
+        var request = URLRequest(url: URL(string: accountUrl)!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+
+        let email = json["email_address"] as? String
+        var tier: String?
+        if let memberships = json["memberships"] as? [[String: Any]],
+           let org = memberships.first?["organization"] as? [String: Any] {
+            tier = org["rate_limit_tier"] as? String
+        }
+
+        self.email = email
+        self.accountInfo = AccountInfo(email: email, rateLimitTier: tier, billingType: nil)
+        Log.info("Account: \(email ?? "?"), plan: \(accountInfo?.planLabel ?? "?")")
     }
 }
 
