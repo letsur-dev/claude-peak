@@ -150,6 +150,11 @@ final class UsageService: ObservableObject {
                 self.error = "Rate limited. Will retry shortly."
             }
             Log.info("Rate limited (429), keeping previous data")
+        } catch UsageServiceError.tokenRefreshFailed {
+            self.needsLogin = true
+            self.usage = nil
+            TokenStore.clear()
+            Log.error("Token refresh failed, re-login required")
         } catch {
             self.error = error.localizedDescription
             Log.error("fetchUsage failed: \(error.localizedDescription)")
