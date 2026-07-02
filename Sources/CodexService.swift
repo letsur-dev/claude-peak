@@ -126,28 +126,88 @@ final class CodexService: ObservableObject {
 
     private func fetchFromAPI() async -> CodexSnapshot? {
         guard let auth = readAuth() else { return nil }
+        let first = await requestUsage(token: auth.token, account: auth.account)
+        if let snapshot = first.snapshot { return snapshot }
+        guard first.status == 401 else { return nil }
 
+        // Stored token expired — refresh it (rotating the refresh token in auth.json) and retry once.
+        Log.info("Codex: usage 401, refreshing token")
+        guard let newToken = await refreshToken() else { return nil }
+        return await requestUsage(token: newToken, account: auth.account).snapshot
+    }
+
+    private func requestUsage(token: String, account: String) async -> (snapshot: CodexSnapshot?, status: Int) {
         var request = URLRequest(url: URL(string: usageURL)!)
-        request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "Authorization")
-        request.setValue(auth.account, forHTTPHeaderField: "chatgpt-account-id")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(account, forHTTPHeaderField: "chatgpt-account-id")
         request.setValue("codex_cli_rs", forHTTPHeaderField: "originator")
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 15
 
         guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let http = response as? HTTPURLResponse else { return (nil, 0) }
+        guard http.statusCode == 200,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let rateLimit = json["rate_limit"] as? [String: Any] else { return nil }
+              let rateLimit = json["rate_limit"] as? [String: Any] else { return (nil, http.statusCode) }
 
         let primary = CodexService.apiWindow(rateLimit["primary_window"])
         let secondary = CodexService.apiWindow(rateLimit["secondary_window"])
-        guard primary != nil || secondary != nil else { return nil }
-        return CodexSnapshot(
+        guard primary != nil || secondary != nil else { return (nil, http.statusCode) }
+        let snapshot = CodexSnapshot(
             primary: primary,
             secondary: secondary,
             planType: json["plan_type"] as? String,
             date: nil
         )
+        return (snapshot, 200)
+    }
+
+    /// Refreshes the ChatGPT OAuth token via auth.openai.com and writes the rotated tokens back to
+    /// `auth.json` so the `codex` CLI stays in sync (its refresh token would otherwise be invalidated).
+    private func refreshToken() async -> String? {
+        let authFile = codexDir.appendingPathComponent("auth.json")
+        guard let data = try? Data(contentsOf: authFile),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var tokens = json["tokens"] as? [String: Any],
+              let refreshToken = tokens["refresh_token"] as? String, !refreshToken.isEmpty else { return nil }
+
+        var request = URLRequest(url: URL(string: "https://auth.openai.com/oauth/token")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "grant_type": "refresh_token",
+            "refresh_token": refreshToken,
+            "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+        ])
+
+        guard let (respData, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let resp = try? JSONSerialization.jsonObject(with: respData) as? [String: Any],
+              let newAccess = resp["access_token"] as? String, !newAccess.isEmpty else {
+            Log.error("Codex: token refresh failed")
+            return nil
+        }
+
+        tokens["access_token"] = newAccess
+        if let newRefresh = resp["refresh_token"] as? String, !newRefresh.isEmpty {
+            tokens["refresh_token"] = newRefresh
+        }
+        if let newId = resp["id_token"] as? String, !newId.isEmpty {
+            tokens["id_token"] = newId
+        }
+        json["tokens"] = tokens
+        json["last_refresh"] = ISO8601DateFormatter().string(from: Date())
+
+        if let out = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+            do {
+                try out.write(to: authFile, options: .atomic)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: authFile.path)
+            } catch {
+                Log.error("Codex: auth.json write failed: \(error.localizedDescription)")
+            }
+        }
+        Log.info("Codex: token refreshed")
+        return newAccess
     }
 
     private func readAuth() -> (token: String, account: String)? {
