@@ -80,6 +80,7 @@ final class CodexService: ObservableObject {
         planType = snap?.planType
         snapshotDate = snap?.date
         available = (snap?.primary != nil || snap?.secondary != nil)
+        Log.info("Codex: available=\(available) 5h=\(primary?.percentage ?? -1)% weekly=\(secondary?.percentage ?? -1)% plan=\(planType ?? "?") asOf=\(snapshotText ?? "?")")
     }
 
     var planLabel: String? {
