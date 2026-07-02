@@ -74,25 +74,14 @@ struct UsageView: View {
             Text("Settings")
                 .font(.system(.headline, design: .monospaced))
 
+            groupHeader("GENERAL")
+
             VStack(alignment: .leading, spacing: 6) {
                 Text("MENU BAR DISPLAY")
                     .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.secondary)
                 Picker("", selection: $settings.menuBarDisplay) {
                     ForEach(MenuBarDisplay.allCases, id: \.self) { option in
-                        Text(option.label).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("WEEKLY LIMIT")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
-                Picker("", selection: $settings.weeklyLimitDisplay) {
-                    ForEach(WeeklyLimitDisplay.allCases, id: \.self) { option in
                         Text(option.label).tag(option)
                     }
                 }
@@ -114,6 +103,34 @@ struct UsageView: View {
                 .onChange(of: settings.pollingInterval) { _ in
                     service.restartPolling()
                 }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("MESSAGE LANGUAGE")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Picker("", selection: $settings.language) {
+                    ForEach(AppLanguage.allCases, id: \.self) { lang in
+                        Text(lang.label).tag(lang)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+
+            groupHeader("CLAUDE")
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("WEEKLY LIMIT")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Picker("", selection: $settings.weeklyLimitDisplay) {
+                    ForEach(WeeklyLimitDisplay.allCases, id: \.self) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -146,19 +163,6 @@ struct UsageView: View {
                     .toggleStyle(.switch)
                     .controlSize(.mini)
                 }
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("MESSAGE LANGUAGE")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
-                Picker("", selection: $settings.language) {
-                    ForEach(AppLanguage.allCases, id: \.self) { lang in
-                        Text(lang.label).tag(lang)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -198,39 +202,6 @@ struct UsageView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("CODEX")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
-                Toggle(isOn: $settings.codexEnabled) {
-                    HStack {
-                        Text("Show Codex usage")
-                            .font(.system(.caption, design: .monospaced))
-                        if settings.codexEnabled && codex.available {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 6, height: 6)
-                        }
-                    }
-                }
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-            }
-
-            if !service.needsLogin {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("ACCOUNT")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Button("Logout") {
-                        service.logout()
-                        showSettings = false
-                    }
-                    .buttonStyle(.borderless)
-                    .foregroundColor(.red)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
                 Text("ACCOUNT LABELS")
                     .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.secondary)
@@ -262,6 +233,41 @@ struct UsageView: View {
                     .buttonStyle(.borderless)
                     .foregroundColor(.red)
                 }
+            }
+
+            if !service.needsLogin {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("ACCOUNT")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                    Button("Logout") {
+                        service.logout()
+                        showSettings = false
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundColor(.red)
+                }
+            }
+
+            groupHeader("CODEX")
+
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle(isOn: $settings.codexEnabled) {
+                    HStack {
+                        Text("Show Codex usage")
+                            .font(.system(.caption, design: .monospaced))
+                        if settings.codexEnabled && codex.available {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 6, height: 6)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                Text("reads ~/.codex")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.secondary)
             }
 
             if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
@@ -437,6 +443,19 @@ struct UsageView: View {
                     .foregroundColor(.secondary)
             }
         }
+    }
+
+    private func groupHeader(_ title: String) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(.caption2, design: .monospaced))
+                .bold()
+                .foregroundColor(.secondary)
+            Rectangle()
+                .fill(Color.secondary.opacity(0.25))
+                .frame(height: 1)
+        }
+        .padding(.top, 4)
     }
 
     private func sectionHeader(_ title: String) -> some View {

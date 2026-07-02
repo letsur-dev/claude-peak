@@ -213,9 +213,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settings.codexEnabled, codex.available, let codexPrimary = codex.primary {
             let codexPart: String
             switch settings.menuBarDisplay {
-            case .percentOnly: codexPart = "⚡ \(codexPrimary.percentage)%"
-            case .timeOnly:    codexPart = "⚡ \(codexPrimary.timeUntilReset)"
-            case .both:        codexPart = "⚡ \(codexPrimary.percentage)% · \(codexPrimary.timeUntilReset)"
+            case .percentOnly: codexPart = "\(codexPrimary.percentage)%"
+            case .timeOnly:    codexPart = "\(codexPrimary.timeUntilReset)"
+            case .both:        codexPart = "\(codexPrimary.percentage)% · \(codexPrimary.timeUntilReset)"
             }
             title += " | \(codexPart)"
         }
