@@ -8,6 +8,16 @@
 
 Claude Max 사용량 한도를 모니터링하는 macOS 메뉴바 앱 — 토큰을 소모할수록 더 뜨겁게 타오르는 실시간 불꽃 애니메이션.
 
+> [!NOTE]
+> **[`beta`](https://github.com/letsur-dev/claude-peak/tree/beta) 브랜치가 이 릴리즈보다 앞서 있습니다** — **실시간 Codex 사용량**(5-hour + 주간, ChatGPT 백엔드에서 조회), **모델별 주간 한도**(예: Opus / Fable), **듀얼 계정** 추적이 추가됐다. 소스에서 빌드해 사용:
+>
+> ```bash
+> git clone -b beta https://github.com/letsur-dev/claude-peak.git
+> cd claude-peak && ./build.sh
+> ```
+>
+> 아래 Homebrew 설치는 안정 `main` 릴리즈 기준이다.
+
 ## Screenshots
 
 <p align="center">
