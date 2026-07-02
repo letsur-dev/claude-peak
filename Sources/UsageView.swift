@@ -3,6 +3,7 @@ import SwiftUI
 struct UsageView: View {
     @ObservedObject var service: UsageService
     @ObservedObject var secondaryService: UsageService
+    @ObservedObject var codex: CodexService
     @ObservedObject var settings: AppSettings
     @ObservedObject var activity: ActivityMonitor
     @ObservedObject var updateChecker: UpdateChecker
@@ -79,6 +80,19 @@ struct UsageView: View {
                     .foregroundColor(.secondary)
                 Picker("", selection: $settings.menuBarDisplay) {
                     ForEach(MenuBarDisplay.allCases, id: \.self) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("WEEKLY LIMIT")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Picker("", selection: $settings.weeklyLimitDisplay) {
+                    ForEach(WeeklyLimitDisplay.allCases, id: \.self) { option in
                         Text(option.label).tag(option)
                     }
                 }
@@ -181,6 +195,25 @@ struct UsageView: View {
                             .frame(width: 50)
                     }
                 }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("CODEX")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Toggle(isOn: $settings.codexEnabled) {
+                    HStack {
+                        Text("Show Codex usage")
+                            .font(.system(.caption, design: .monospaced))
+                        if settings.codexEnabled && codex.available {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 6, height: 6)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .controlSize(.mini)
             }
 
             if !service.needsLogin {
@@ -341,18 +374,7 @@ struct UsageView: View {
         )
 
         paceLabel(for: usage.sevenDay)
-        usageBar(
-            label: "All models",
-            bucket: usage.sevenDay,
-            showDate: true
-        )
-        if let sonnet = usage.sevenDaySonnet {
-            usageBar(
-                label: "Sonnet only",
-                bucket: sonnet,
-                showDate: true
-            )
-        }
+        weeklyBars(usage)
 
         if let secondUsage = secondaryService.usage {
             Divider()
@@ -371,15 +393,40 @@ struct UsageView: View {
             }
             usageBar(label: "5-hour limit", bucket: secondUsage.fiveHour)
             paceLabel(for: secondUsage.sevenDay)
-            usageBar(label: "All models", bucket: secondUsage.sevenDay, showDate: true)
-            if let sonnet = secondUsage.sevenDaySonnet {
-                usageBar(label: "Sonnet only", bucket: sonnet, showDate: true)
-            }
+            weeklyBars(secondUsage)
 
         } else if !secondaryService.needsLogin && secondaryService.isLoading {
             Divider()
             sectionHeader("\(settings.subAccountLabel) Account")
             ProgressView().controlSize(.small)
+        }
+
+        if settings.codexEnabled && codex.available {
+            Divider()
+
+            HStack {
+                sectionHeader("⚡ Codex")
+                if let plan = codex.planLabel {
+                    Spacer()
+                    Text(plan)
+                        .font(.system(.caption2, design: .monospaced))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.15))
+                        .cornerRadius(4)
+                }
+            }
+            if let codexPrimary = codex.primary {
+                codexBar(label: "5-hour limit", window: codexPrimary)
+            }
+            if let codexSecondary = codex.secondary {
+                codexBar(label: "Weekly", window: codexSecondary, showDate: true)
+            }
+            if let asOf = codex.snapshotText {
+                Text("as of \(asOf)")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.secondary)
+            }
         }
 
         if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
@@ -424,6 +471,49 @@ struct UsageView: View {
             .frame(height: 8)
 
             Text(showDate ? "Resets at \(bucket.resetDateString)" : "Resets in \(bucket.timeUntilReset)")
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func weeklyBars(_ usage: UsageResponse) -> some View {
+        if settings.weeklyLimitDisplay != .scoped {
+            usageBar(label: "All models", bucket: usage.sevenDay, showDate: true)
+        }
+        if settings.weeklyLimitDisplay != .all {
+            ForEach(usage.weeklyScopedLimits) { item in
+                usageBar(label: "\(item.name) only", bucket: item.bucket, showDate: true)
+            }
+        }
+    }
+
+    private func codexBar(label: String, window: CodexWindow, showDate: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.system(.body, design: .monospaced))
+                Spacer()
+                Text("\(window.percentage)%")
+                    .font(.system(.body, design: .monospaced))
+                    .bold()
+                    .foregroundColor(colorForPercentage(window.percentage))
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 8)
+
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(colorForPercentage(window.percentage))
+                        .frame(width: geo.size.width * min(1, CGFloat(window.usedPercent) / 100), height: 8)
+                }
+            }
+            .frame(height: 8)
+
+            Text(showDate ? "Resets at \(window.resetDateString)" : "Resets in \(window.timeUntilReset)")
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundColor(.secondary)
         }

@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var popover: NSPopover!
     private var service: UsageService!
     private var secondaryService: UsageService!
+    private var codex: CodexService!
     private var settings: AppSettings!
     private var activity: ActivityMonitor!
     private var updateChecker: UpdateChecker!
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Log.info("Claude Peak launched")
         service = UsageService()
         secondaryService = UsageService(profile: "secondary")
+        codex = CodexService()
         settings = AppSettings.shared
         activity = ActivityMonitor()
         updateChecker = UpdateChecker()
@@ -39,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentSize = NSSize(width: 280, height: 400)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(
-            rootView: UsageView(service: service, secondaryService: secondaryService, settings: settings, activity: activity, updateChecker: updateChecker)
+            rootView: UsageView(service: service, secondaryService: secondaryService, codex: codex, settings: settings, activity: activity, updateChecker: updateChecker)
                 .frame(width: 280)
         )
 
@@ -71,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         service.startPolling()
         secondaryService.startPolling()
+        codex.start()
         activity.start()
         Task { await updateChecker.check() }
     }
@@ -83,6 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await updateChecker.check() }
             Task { await service.fetchUsage() }
             Task { await secondaryService.fetchUsage() }
+            codex.refresh()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
@@ -183,27 +187,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let subTime = sub?.fiveHour.timeUntilReset
         let sameTime = sub != nil && mainTime == subTime
 
+        var title: String
         switch settings.menuBarDisplay {
         case .percentOnly:
             let main = "\(usage.fiveHour.percentage)%"
-            button.title = sub != nil ? " \(main) / \(sub!.fiveHour.percentage)%" : " \(main)"
+            title = sub != nil ? " \(main) / \(sub!.fiveHour.percentage)%" : " \(main)"
         case .timeOnly:
             if let sub = sub {
-                button.title = sameTime ? " \(mainTime)" : " \(mainTime) / \(sub.fiveHour.timeUntilReset)"
+                title = sameTime ? " \(mainTime)" : " \(mainTime) / \(sub.fiveHour.timeUntilReset)"
             } else {
-                button.title = " \(mainTime)"
+                title = " \(mainTime)"
             }
         case .both:
             if let sub = sub {
                 if sameTime {
-                    button.title = " \(usage.fiveHour.percentage)% / \(sub.fiveHour.percentage)% · \(mainTime)"
+                    title = " \(usage.fiveHour.percentage)% / \(sub.fiveHour.percentage)% · \(mainTime)"
                 } else {
-                    button.title = " \(usage.fiveHour.percentage)% \(mainTime) / \(sub.fiveHour.percentage)% \(sub.fiveHour.timeUntilReset)"
+                    title = " \(usage.fiveHour.percentage)% \(mainTime) / \(sub.fiveHour.percentage)% \(sub.fiveHour.timeUntilReset)"
                 }
             } else {
-                button.title = " \(usage.fiveHour.percentage)% · \(mainTime)"
+                title = " \(usage.fiveHour.percentage)% · \(mainTime)"
             }
         }
+
+        if settings.codexEnabled, codex.available, let codexPrimary = codex.primary {
+            let codexPart: String
+            switch settings.menuBarDisplay {
+            case .percentOnly: codexPart = "⚡ \(codexPrimary.percentage)%"
+            case .timeOnly:    codexPart = "⚡ \(codexPrimary.timeUntilReset)"
+            case .both:        codexPart = "⚡ \(codexPrimary.percentage)% · \(codexPrimary.timeUntilReset)"
+            }
+            title += " | \(codexPart)"
+        }
+
+        button.title = title
     }
 
     private func animationInterval(for tps: Double) -> TimeInterval? {
