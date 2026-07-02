@@ -126,7 +126,7 @@ struct UsageView: View {
                     .foregroundColor(.secondary)
                 Picker("", selection: $settings.weeklyLimitDisplay) {
                     ForEach(WeeklyLimitDisplay.allCases, id: \.self) { option in
-                        Text(option.label).tag(option)
+                        Text(option == .scoped ? (service.usage?.weeklyScopedLimits.first?.name ?? option.label) : option.label).tag(option)
                     }
                 }
                 .pickerStyle(.segmented)
