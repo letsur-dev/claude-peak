@@ -86,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await updateChecker.check() }
             Task { await service.fetchUsage() }
             Task { await secondaryService.fetchUsage() }
-            codex.refresh()
+            Task { await codex.refresh() }
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }

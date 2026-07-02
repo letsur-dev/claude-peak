@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Codex rate-limit window (from ~/.codex rollout logs)
+// MARK: - Codex rate-limit window
 
 struct CodexWindow {
     let usedPercent: Double
@@ -34,22 +34,26 @@ private struct CodexSnapshot {
     let primary: CodexWindow?
     let secondary: CodexWindow?
     let planType: String?
-    let date: Date?
+    let date: Date?   // nil == live (from API now); non-nil == local-log snapshot time
 }
 
-/// Reads Codex usage from local rollout logs (`~/.codex/sessions/**/rollout-*.jsonl`).
-/// The Codex CLI writes the server's own rate-limit snapshot (5-hour + weekly windows)
-/// into each `token_count` event, so we just read the latest one — no auth, no network.
-/// Freshness is "as of the last Codex turn"; it does not update while Codex is idle.
+/// Reads Codex usage. Primary source is the live ChatGPT backend (`wham/usage`) using the
+/// OAuth token in `~/.codex/auth.json` — same call the `codex` CLI makes — so the 5-hour and
+/// weekly percentages match reality even while Codex is idle. Falls back to parsing the local
+/// rollout logs (`~/.codex/sessions/**/rollout-*.jsonl`) when the API is unreachable or the
+/// stored token has expired (in which case the value is "as of the last Codex run").
 @MainActor
 final class CodexService: ObservableObject {
     @Published var primary: CodexWindow?    // 5-hour window
     @Published var secondary: CodexWindow?  // weekly window
     @Published var planType: String?
-    @Published var snapshotDate: Date?
+    @Published var snapshotDate: Date?      // set only for the local-log fallback
+    @Published var isLive = false
     @Published var available = false
 
     private let codexDir: URL
+    private let usageURL = "https://chatgpt.com/backend-api/wham/usage"
+    private let userAgent = "codex_cli_rs/0.73.0"
     private var timer: Timer?
 
     init() {
@@ -62,9 +66,9 @@ final class CodexService: ObservableObject {
     }
 
     func start() {
-        refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.refresh() }
+        Task { await refresh() }
+        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.refresh() }
         }
     }
 
@@ -73,14 +77,26 @@ final class CodexService: ObservableObject {
         timer = nil
     }
 
-    func refresh() {
-        let snap = scan()
-        primary = snap?.primary
-        secondary = snap?.secondary
-        planType = snap?.planType
-        snapshotDate = snap?.date
-        available = (snap?.primary != nil || snap?.secondary != nil)
-        Log.info("Codex: available=\(available) 5h=\(primary?.percentage ?? -1)% weekly=\(secondary?.percentage ?? -1)% plan=\(planType ?? "?") asOf=\(snapshotText ?? "?")")
+    func refresh() async {
+        if let snap = await fetchFromAPI() {
+            apply(snap)
+            Log.info("Codex(API): 5h=\(primary?.percentage ?? -1)% weekly=\(secondary?.percentage ?? -1)% plan=\(planType ?? "?")")
+        } else if let snap = scanLocal() {
+            apply(snap)
+            Log.info("Codex(log): 5h=\(primary?.percentage ?? -1)% weekly=\(secondary?.percentage ?? -1)% asOf=\(snapshotText ?? "?")")
+        } else {
+            available = false
+            Log.info("Codex: no data (API and local log both unavailable)")
+        }
+    }
+
+    private func apply(_ snap: CodexSnapshot) {
+        primary = snap.primary
+        secondary = snap.secondary
+        planType = snap.planType
+        snapshotDate = snap.date
+        isLive = (snap.date == nil)
+        available = (snap.primary != nil || snap.secondary != nil)
     }
 
     var planLabel: String? {
@@ -97,6 +113,7 @@ final class CodexService: ObservableObject {
         }
     }
 
+    /// Snapshot time for the local-log fallback ("as of …"); nil when live.
     var snapshotText: String? {
         guard let date = snapshotDate else { return nil }
         let formatter = DateFormatter()
@@ -105,9 +122,58 @@ final class CodexService: ObservableObject {
         return formatter.string(from: date)
     }
 
-    // MARK: - Scanning
+    // MARK: - Live API (chatgpt.com/backend-api/wham/usage)
 
-    private func scan() -> CodexSnapshot? {
+    private func fetchFromAPI() async -> CodexSnapshot? {
+        guard let auth = readAuth() else { return nil }
+
+        var request = URLRequest(url: URL(string: usageURL)!)
+        request.setValue("Bearer \(auth.token)", forHTTPHeaderField: "Authorization")
+        request.setValue(auth.account, forHTTPHeaderField: "chatgpt-account-id")
+        request.setValue("codex_cli_rs", forHTTPHeaderField: "originator")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 15
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rateLimit = json["rate_limit"] as? [String: Any] else { return nil }
+
+        let primary = CodexService.apiWindow(rateLimit["primary_window"])
+        let secondary = CodexService.apiWindow(rateLimit["secondary_window"])
+        guard primary != nil || secondary != nil else { return nil }
+        return CodexSnapshot(
+            primary: primary,
+            secondary: secondary,
+            planType: json["plan_type"] as? String,
+            date: nil
+        )
+    }
+
+    private func readAuth() -> (token: String, account: String)? {
+        let authFile = codexDir.appendingPathComponent("auth.json")
+        guard let data = try? Data(contentsOf: authFile),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tokens = json["tokens"] as? [String: Any],
+              let token = tokens["access_token"] as? String, !token.isEmpty,
+              let account = tokens["account_id"] as? String, !account.isEmpty else { return nil }
+        return (token, account)
+    }
+
+    private static func apiWindow(_ any: Any?) -> CodexWindow? {
+        guard let dict = any as? [String: Any],
+              let pct = (dict["used_percent"] as? NSNumber)?.doubleValue else { return nil }
+        let windowMinutes = (dict["limit_window_seconds"] as? NSNumber).map { $0.intValue / 60 }
+        return CodexWindow(
+            usedPercent: pct,
+            windowMinutes: windowMinutes,
+            resetsAt: (dict["reset_at"] as? NSNumber)?.intValue
+        )
+    }
+
+    // MARK: - Local rollout-log fallback
+
+    private func scanLocal() -> CodexSnapshot? {
         let sessions = codexDir.appendingPathComponent("sessions")
         guard let newest = newestRollout(in: sessions) else { return nil }
         return lastTokenCount(in: newest)
@@ -139,7 +205,6 @@ final class CodexService: ObservableObject {
 
         var snapshot: CodexSnapshot?
         text.enumerateLines { line, _ in
-            // Fast pre-filter: skip the large schema lines, only parse token_count events.
             guard line.contains("\"token_count\"") else { return }
             guard let lineData = line.data(using: .utf8),
                   let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
@@ -147,8 +212,8 @@ final class CodexService: ObservableObject {
                   (payload["type"] as? String) == "token_count",
                   let rateLimits = payload["rate_limits"] as? [String: Any] else { return }
 
-            let primary = CodexService.window(from: rateLimits["primary"])
-            let secondary = CodexService.window(from: rateLimits["secondary"])
+            let primary = CodexService.logWindow(from: rateLimits["primary"])
+            let secondary = CodexService.logWindow(from: rateLimits["secondary"])
             let plan = rateLimits["plan_type"] as? String
             let date = (obj["timestamp"] as? String).flatMap { CodexService.parseDate($0) }
             snapshot = CodexSnapshot(primary: primary, secondary: secondary, planType: plan, date: date)
@@ -156,7 +221,7 @@ final class CodexService: ObservableObject {
         return snapshot
     }
 
-    private static func window(from any: Any?) -> CodexWindow? {
+    private static func logWindow(from any: Any?) -> CodexWindow? {
         guard let dict = any as? [String: Any],
               let pct = (dict["used_percent"] as? NSNumber)?.doubleValue else { return nil }
         return CodexWindow(

@@ -428,7 +428,11 @@ struct UsageView: View {
             if let codexSecondary = codex.secondary {
                 codexBar(label: "Weekly", window: codexSecondary, showDate: true)
             }
-            if let asOf = codex.snapshotText {
+            if codex.isLive {
+                Text("live")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.green)
+            } else if let asOf = codex.snapshotText {
                 Text("as of \(asOf)")
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundColor(.secondary)
