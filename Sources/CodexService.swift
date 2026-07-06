@@ -48,6 +48,9 @@ private struct CodexSnapshot {
 /// weekly percentages match reality even while Codex is idle. Falls back to parsing the local
 /// rollout logs (`~/.codex/sessions/**/rollout-*.jsonl`) when the API is unreachable or the
 /// stored token has expired (in which case the value is "as of the last Codex run").
+///
+/// Auth is owned by the `codex` CLI (we only read/refresh auth.json), so there is deliberately
+/// no in-app Codex login/logout — the CODEX toggle only controls visibility. Never delete auth.json.
 @MainActor
 final class CodexService: ObservableObject {
     @Published var primary: CodexWindow?    // 5-hour window
