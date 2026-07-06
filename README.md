@@ -8,16 +8,6 @@
 
 A macOS menu bar app that monitors Claude Max usage limits — with real-time flame animation that burns hotter as you consume more tokens.
 
-> [!NOTE]
-> **The [`beta`](https://github.com/letsur-dev/claude-peak/tree/beta) branch is ahead of this release** — it adds **live Codex usage** (5-hour + weekly, read from the ChatGPT backend), **per-model weekly limits** (e.g. Opus / Fable), and **dual-account** tracking. Try it by building from source:
->
-> ```bash
-> git clone -b beta https://github.com/letsur-dev/claude-peak.git
-> cd claude-peak && ./build.sh
-> ```
->
-> The Homebrew install below tracks the stable `main` release.
-
 ## Screenshots
 
 <p align="center">

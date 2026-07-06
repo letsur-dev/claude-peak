@@ -58,6 +58,20 @@ enum PollingInterval: Int, CaseIterable {
     }
 }
 
+enum WeeklyLimitDisplay: String, CaseIterable {
+    case all = "all"
+    case scoped = "scoped"
+    case both = "both"
+
+    var label: String {
+        switch self {
+        case .all: return "All"
+        case .scoped: return "Scoped"
+        case .both: return "Both"
+        }
+    }
+}
+
 @MainActor
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
@@ -82,6 +96,18 @@ final class AppSettings: ObservableObject {
     }
     @Published var language: AppLanguage {
         didSet { UserDefaults.standard.set(language.rawValue, forKey: "language") }
+    }
+    @Published var weeklyLimitDisplay: WeeklyLimitDisplay {
+        didSet { UserDefaults.standard.set(weeklyLimitDisplay.rawValue, forKey: "weeklyLimitDisplay") }
+    }
+    @Published var codexEnabled: Bool {
+        didSet { UserDefaults.standard.set(codexEnabled, forKey: "codexEnabled") }
+    }
+    @Published var mainAccountLabel: String {
+        didSet { UserDefaults.standard.set(mainAccountLabel, forKey: "mainAccountLabel") }
+    }
+    @Published var subAccountLabel: String {
+        didSet { UserDefaults.standard.set(subAccountLabel, forKey: "subAccountLabel") }
     }
 
     private init() {
@@ -122,6 +148,22 @@ final class AppSettings: ObservableObject {
             self.language = value
         } else {
             self.language = .en
+        }
+
+        self.mainAccountLabel = UserDefaults.standard.string(forKey: "mainAccountLabel") ?? "Main"
+        self.subAccountLabel = UserDefaults.standard.string(forKey: "subAccountLabel") ?? "Sub"
+
+        if let raw = UserDefaults.standard.string(forKey: "weeklyLimitDisplay"),
+           let value = WeeklyLimitDisplay(rawValue: raw) {
+            self.weeklyLimitDisplay = value
+        } else {
+            self.weeklyLimitDisplay = .both
+        }
+
+        if UserDefaults.standard.object(forKey: "codexEnabled") != nil {
+            self.codexEnabled = UserDefaults.standard.bool(forKey: "codexEnabled")
+        } else {
+            self.codexEnabled = true
         }
     }
 }

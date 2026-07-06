@@ -2,6 +2,8 @@ import SwiftUI
 
 struct UsageView: View {
     @ObservedObject var service: UsageService
+    @ObservedObject var secondaryService: UsageService
+    @ObservedObject var codex: CodexService
     @ObservedObject var settings: AppSettings
     @ObservedObject var activity: ActivityMonitor
     @ObservedObject var updateChecker: UpdateChecker
@@ -52,6 +54,7 @@ struct UsageView: View {
         .frame(width: 280)
         .onAppear {
             service.startPolling()
+            secondaryService.startPolling()
             if flipTimer == nil {
                 flipTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
                     Task { @MainActor in
@@ -70,6 +73,8 @@ struct UsageView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Settings")
                 .font(.system(.headline, design: .monospaced))
+
+            groupHeader("GENERAL")
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("MENU BAR DISPLAY")
@@ -98,6 +103,34 @@ struct UsageView: View {
                 .onChange(of: settings.pollingInterval) { _ in
                     service.restartPolling()
                 }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("MESSAGE LANGUAGE")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Picker("", selection: $settings.language) {
+                    ForEach(AppLanguage.allCases, id: \.self) { lang in
+                        Text(lang.label).tag(lang)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+
+            groupHeader("CLAUDE")
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("WEEKLY LIMIT")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                Picker("", selection: $settings.weeklyLimitDisplay) {
+                    ForEach(WeeklyLimitDisplay.allCases, id: \.self) { option in
+                        Text(option == .scoped ? (service.usage?.weeklyScopedLimits.first?.name ?? option.label) : option.label).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -130,19 +163,6 @@ struct UsageView: View {
                     .toggleStyle(.switch)
                     .controlSize(.mini)
                 }
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("MESSAGE LANGUAGE")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
-                Picker("", selection: $settings.language) {
-                    ForEach(AppLanguage.allCases, id: \.self) { lang in
-                        Text(lang.label).tag(lang)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -181,6 +201,40 @@ struct UsageView: View {
                 }
             }
 
+            VStack(alignment: .leading, spacing: 6) {
+                Text("ACCOUNT LABELS")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    TextField("Main", text: $settings.mainAccountLabel)
+                        .font(.system(.caption, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Sub", text: $settings.subAccountLabel)
+                        .font(.system(.caption, design: .monospaced))
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("SUB ACCOUNT")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.secondary)
+                if secondaryService.needsLogin {
+                    Button("Login Sub Account") {
+                        secondaryService.oauthService.startLogin { result in
+                            secondaryService.handleLoginResult(result)
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                } else {
+                    Button("Logout Sub") {
+                        secondaryService.logout()
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundColor(.red)
+                }
+            }
+
             if !service.needsLogin {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("ACCOUNT")
@@ -193,6 +247,27 @@ struct UsageView: View {
                     .buttonStyle(.borderless)
                     .foregroundColor(.red)
                 }
+            }
+
+            groupHeader("CODEX")
+
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle(isOn: $settings.codexEnabled) {
+                    HStack {
+                        Text("Show Codex usage")
+                            .font(.system(.caption, design: .monospaced))
+                        if settings.codexEnabled && codex.available {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 6, height: 6)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                Text("reads ~/.codex")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.secondary)
             }
 
             if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
@@ -263,6 +338,9 @@ struct UsageView: View {
 
     @ViewBuilder
     private func usageContent(_ usage: UsageResponse) -> some View {
+        if service.isStale {
+            staleHint(service.lastUpdated)
+        }
         if settings.flameMode != .off {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
@@ -285,27 +363,82 @@ struct UsageView: View {
             Divider()
         }
 
-        sectionHeader("Current Session")
+        if secondaryService.usage != nil {
+            HStack {
+                sectionHeader(service.email ?? settings.mainAccountLabel)
+                if let plan = service.accountInfo?.planLabel {
+                    Spacer()
+                    Text(plan)
+                        .font(.system(.caption2, design: .monospaced))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.15))
+                        .cornerRadius(4)
+                }
+            }
+        }
         usageBar(
             label: "5-hour limit",
             bucket: usage.fiveHour
         )
 
-        Divider()
-
-        sectionHeader("Weekly Limits")
         paceLabel(for: usage.sevenDay)
-        usageBar(
-            label: "All models",
-            bucket: usage.sevenDay,
-            showDate: true
-        )
-        if let sonnet = usage.sevenDaySonnet {
-            usageBar(
-                label: "Sonnet only",
-                bucket: sonnet,
-                showDate: true
-            )
+        weeklyBars(usage)
+
+        if let secondUsage = secondaryService.usage {
+            Divider()
+
+            HStack {
+                sectionHeader(secondaryService.email ?? settings.subAccountLabel)
+                if let plan = secondaryService.accountInfo?.planLabel {
+                    Spacer()
+                    Text(plan)
+                        .font(.system(.caption2, design: .monospaced))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.15))
+                        .cornerRadius(4)
+                }
+            }
+            usageBar(label: "5-hour limit", bucket: secondUsage.fiveHour)
+            paceLabel(for: secondUsage.sevenDay)
+            weeklyBars(secondUsage)
+
+        } else if !secondaryService.needsLogin && secondaryService.isLoading {
+            Divider()
+            sectionHeader("\(settings.subAccountLabel) Account")
+            ProgressView().controlSize(.small)
+        }
+
+        if settings.codexEnabled && codex.available {
+            Divider()
+
+            HStack {
+                sectionHeader("⚡ Codex")
+                if let plan = codex.planLabel {
+                    Spacer()
+                    Text(plan)
+                        .font(.system(.caption2, design: .monospaced))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.15))
+                        .cornerRadius(4)
+                }
+            }
+            if let codexPrimary = codex.primary {
+                codexBar(label: "5-hour limit", window: codexPrimary)
+            }
+            if let codexSecondary = codex.secondary {
+                if let bucket = codexSecondary.pacingBucket {
+                    paceLabel(for: bucket)
+                }
+                codexBar(label: "Weekly", window: codexSecondary, showDate: true)
+            }
+            if !codex.isLive, let asOf = codex.snapshotText {
+                Text("as of \(asOf)")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundColor(.secondary)
+            }
         }
 
         if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
@@ -318,11 +451,36 @@ struct UsageView: View {
         }
     }
 
+    private func groupHeader(_ title: String) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(.caption2, design: .monospaced))
+                .bold()
+                .foregroundColor(.secondary)
+            Rectangle()
+                .fill(Color.secondary.opacity(0.25))
+                .frame(height: 1)
+        }
+        .padding(.top, 4)
+    }
+
     private func sectionHeader(_ title: String) -> some View {
-        Text(title)
+        Text(title.contains("@") ? title : title.uppercased())
             .font(.system(.caption, design: .monospaced))
             .foregroundColor(.secondary)
-            .textCase(.uppercase)
+    }
+
+    private func staleHint(_ updated: Date?) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+            Text(updated.map { "updated \(minutesAgo($0))m ago" } ?? "not up to date")
+        }
+        .font(.system(.caption2, design: .monospaced))
+        .foregroundColor(.secondary)
+    }
+
+    private func minutesAgo(_ date: Date) -> Int {
+        max(0, Int(Date().timeIntervalSince(date) / 60))
     }
 
     private func usageBar(label: String, bucket: UsageBucket, showDate: Bool = false) -> some View {
@@ -351,6 +509,49 @@ struct UsageView: View {
             .frame(height: 8)
 
             Text(showDate ? "Resets at \(bucket.resetDateString)" : "Resets in \(bucket.timeUntilReset)")
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func weeklyBars(_ usage: UsageResponse) -> some View {
+        if settings.weeklyLimitDisplay != .scoped {
+            usageBar(label: "All models", bucket: usage.sevenDay, showDate: true)
+        }
+        if settings.weeklyLimitDisplay != .all {
+            ForEach(usage.weeklyScopedLimits) { item in
+                usageBar(label: "\(item.name) only", bucket: item.bucket, showDate: true)
+            }
+        }
+    }
+
+    private func codexBar(label: String, window: CodexWindow, showDate: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.system(.body, design: .monospaced))
+                Spacer()
+                Text("\(window.percentage)%")
+                    .font(.system(.body, design: .monospaced))
+                    .bold()
+                    .foregroundColor(colorForPercentage(window.percentage))
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 8)
+
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(colorForPercentage(window.percentage))
+                        .frame(width: geo.size.width * min(1, CGFloat(window.usedPercent) / 100), height: 8)
+                }
+            }
+            .frame(height: 8)
+
+            Text(showDate ? "Resets at \(window.resetDateString)" : "Resets in \(window.timeUntilReset)")
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundColor(.secondary)
         }

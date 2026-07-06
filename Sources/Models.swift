@@ -1,5 +1,25 @@
 import Foundation
 
+// MARK: - Account Info
+
+struct AccountInfo {
+    let email: String?
+    let rateLimitTier: String?
+    let billingType: String?
+
+    var planLabel: String? {
+        guard let tier = rateLimitTier else { return nil }
+        switch tier {
+        case "default_claude_max_20x": return "Max 20x"
+        case "default_claude_max_5x": return "Max 5x"
+        case "default_claude_max": return "Max"
+        case "default_claude_pro": return "Pro"
+        case "default_claude_ai": return "Free"
+        default: return nil
+        }
+    }
+}
+
 // MARK: - Usage API Response
 
 struct UsageResponse: Codable {
@@ -7,12 +27,28 @@ struct UsageResponse: Codable {
     let sevenDay: UsageBucket
     let sevenDaySonnet: UsageBucket?
     let extraUsage: ExtraUsage
+    let limits: [Limit]?
 
     enum CodingKeys: String, CodingKey {
         case fiveHour = "five_hour"
         case sevenDay = "seven_day"
         case sevenDaySonnet = "seven_day_sonnet"
         case extraUsage = "extra_usage"
+        case limits
+    }
+
+    /// Model-scoped weekly limits (e.g. "Fable only") from the new `limits` array.
+    /// The legacy per-model top-level fields are now always null, so these come from `limits`.
+    var weeklyScopedLimits: [ScopedLimit] {
+        guard let limits = limits else { return [] }
+        return limits.compactMap { limit in
+            guard limit.group == "weekly", limit.kind == "weekly_scoped",
+                  let name = limit.scope?.model?.displayName else { return nil }
+            return ScopedLimit(
+                name: name,
+                bucket: UsageBucket(utilization: Double(limit.percent), resetsAt: limit.resetsAt)
+            )
+        }
     }
 }
 
@@ -150,4 +186,42 @@ struct ExtraUsage: Codable {
     enum CodingKeys: String, CodingKey {
         case isEnabled = "is_enabled"
     }
+}
+
+// MARK: - Model-scoped Limits (new `limits` API array)
+
+struct Limit: Codable {
+    let kind: String        // "session" | "weekly_all" | "weekly_scoped"
+    let group: String       // "session" | "weekly"
+    let percent: Int
+    let severity: String?
+    let resetsAt: String?
+    let scope: LimitScope?
+    let isActive: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case kind, group, percent, severity, scope
+        case resetsAt = "resets_at"
+        case isActive = "is_active"
+    }
+}
+
+struct LimitScope: Codable {
+    let model: LimitModel?
+}
+
+struct LimitModel: Codable {
+    let id: String?
+    let displayName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+    }
+}
+
+struct ScopedLimit: Identifiable {
+    var id: String { name }
+    let name: String
+    let bucket: UsageBucket
 }

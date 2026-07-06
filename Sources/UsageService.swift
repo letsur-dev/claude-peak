@@ -7,10 +7,15 @@ final class UsageService: ObservableObject {
     @Published var isLoading = false
     @Published var needsLogin = false
     @Published var usageDelta: Double = 0 // change per poll
+    @Published var email: String?
+    @Published var accountInfo: AccountInfo?
+    @Published var lastUpdated: Date?   // time of the last successful fetch (or cached snapshot)
+    @Published var isStale = false      // most recent refresh failed but cached data is still shown
 
     private let clientId = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     private let tokenUrl = "https://platform.claude.com/v1/oauth/token"
     private let usageUrl = "https://api.anthropic.com/api/oauth/usage"
+    private let accountUrl = "https://api.anthropic.com/api/oauth/account"
     private let userAgent = "claude-code/2.0.32"
     private let scopes = "user:profile user:inference"
 
@@ -19,23 +24,36 @@ final class UsageService: ObservableObject {
     private var pollingTimer: Timer?
     private var resetTimer: Timer?
 
+    let profile: String
     let oauthService = OAuthService()
 
+    init(profile: String = "default") {
+        self.profile = profile
+    }
+
+    private var cacheKey: String { "cachedUsage-\(profile)" }
+    private var cacheDateKey: String { "cachedUsageDate-\(profile)" }
+
     private func loadCachedUsage() {
-        guard let data = UserDefaults.standard.data(forKey: "cachedUsage"),
+        guard let data = UserDefaults.standard.data(forKey: cacheKey),
               let cached = try? JSONDecoder().decode(UsageResponse.self, from: data) else { return }
         self.usage = cached
+        self.lastUpdated = UserDefaults.standard.object(forKey: cacheDateKey) as? Date
     }
 
     private func cacheUsage(_ usage: UsageResponse) {
         if let data = try? JSONEncoder().encode(usage) {
-            UserDefaults.standard.set(data, forKey: "cachedUsage")
+            UserDefaults.standard.set(data, forKey: cacheKey)
+            UserDefaults.standard.set(Date(), forKey: cacheDateKey)
         }
     }
 
     func startPolling() {
         guard pollingTimer == nil else { return }
         loadCachedUsage()
+        if let stored = try? TokenStore.load(profile: profile) {
+            self.email = stored.email
+        }
         Task { await fetchUsage() }
         let interval = TimeInterval(AppSettings.shared.pollingInterval.rawValue)
         pollingTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
@@ -68,7 +86,7 @@ final class UsageService: ObservableObject {
     }
 
     func logout() {
-        TokenStore.clear()
+        TokenStore.clear(profile: profile)
         cachedAccessToken = nil
         tokenExpiresAt = nil
         resetTimer?.invalidate()
@@ -76,6 +94,8 @@ final class UsageService: ObservableObject {
         usage = nil
         error = nil
         needsLogin = true
+        email = nil
+        accountInfo = nil
     }
 
     func handleLoginResult(_ result: Result<TokenPair, Error>) {
@@ -94,10 +114,11 @@ final class UsageService: ObservableObject {
         let tokens = StoredTokens(
             accessToken: pair.accessToken,
             refreshToken: pair.refreshToken,
-            expiresAt: Int64((Date().timeIntervalSince1970 + Double(pair.expiresIn)) * 1000)
+            expiresAt: Int64((Date().timeIntervalSince1970 + Double(pair.expiresIn)) * 1000),
+            email: pair.email
         )
         do {
-            try TokenStore.save(tokens)
+            try TokenStore.save(tokens, profile: profile)
             self.cachedAccessToken = pair.accessToken
             self.tokenExpiresAt = Date().addingTimeInterval(Double(pair.expiresIn))
             self.needsLogin = false
@@ -120,8 +141,11 @@ final class UsageService: ObservableObject {
             self.usage = usageData
             self.error = nil
             self.needsLogin = false
+            self.isStale = false
+            self.lastUpdated = Date()
             cacheUsage(usageData)
             scheduleResetFetch(usageData)
+            if accountInfo == nil { await fetchAccountInfo(token: token) }
             Log.info("Usage fetched: 5h=\(usageData.fiveHour.utilization)%, 7d=\(usageData.sevenDay.utilization)%")
         } catch is TokenStoreError {
             self.needsLogin = true
@@ -136,18 +160,22 @@ final class UsageService: ObservableObject {
                 let usageData = try await requestUsage(token: token)
                 self.usage = usageData
                 self.error = nil
+                self.isStale = false
+                self.lastUpdated = Date()
                 cacheUsage(usageData)
                 scheduleResetFetch(usageData)
                 Log.info("Refresh succeeded, usage: 5h=\(usageData.fiveHour.utilization)%")
             } catch {
                 self.needsLogin = true
                 self.error = "Session expired. Please login again."
-                TokenStore.clear()
+                TokenStore.clear(profile: profile)
                 Log.error("Refresh failed: \(error.localizedDescription)")
             }
         } catch UsageServiceError.usageFetchFailed(429) {
             if self.usage == nil {
                 self.error = "Rate limited. Will retry shortly."
+            } else {
+                self.isStale = true
             }
             Log.info("Rate limited (429), keeping previous data")
         } catch UsageServiceError.tokenRefreshFailed {
@@ -167,7 +195,7 @@ final class UsageService: ObservableObject {
             return token
         }
 
-        let stored = try TokenStore.load()
+        let stored = try TokenStore.load(profile: profile)
         let expiry = Date(timeIntervalSince1970: TimeInterval(stored.expiresAt) / 1000)
 
         if expiry.timeIntervalSinceNow > 300 {
@@ -185,7 +213,7 @@ final class UsageService: ObservableObject {
     }
 
     private func refreshAndRetry() async throws -> String {
-        let stored = try TokenStore.load()
+        let stored = try TokenStore.load(profile: profile)
         guard let refreshToken = stored.refreshToken, !refreshToken.isEmpty else {
             throw TokenStoreError.noToken
         }
@@ -223,7 +251,7 @@ final class UsageService: ObservableObject {
             refreshToken: refreshResp.refresh_token ?? refreshToken,
             expiresAt: Int64((Date().timeIntervalSince1970 + Double(refreshResp.expires_in)) * 1000)
         )
-        try TokenStore.save(newTokens)
+        try TokenStore.save(newTokens, profile: profile)
 
         self.cachedAccessToken = refreshResp.access_token
         self.tokenExpiresAt = Date().addingTimeInterval(Double(refreshResp.expires_in))
@@ -255,6 +283,28 @@ final class UsageService: ObservableObject {
         }
 
         return try JSONDecoder().decode(UsageResponse.self, from: data)
+    }
+
+    private func fetchAccountInfo(token: String) async {
+        var request = URLRequest(url: URL(string: accountUrl)!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+
+        let email = json["email_address"] as? String
+        var tier: String?
+        if let memberships = json["memberships"] as? [[String: Any]],
+           let org = memberships.first?["organization"] as? [String: Any] {
+            tier = org["rate_limit_tier"] as? String
+        }
+
+        self.email = email
+        self.accountInfo = AccountInfo(email: email, rateLimitTier: tier, billingType: nil)
+        Log.info("Account: \(email ?? "?"), plan: \(accountInfo?.planLabel ?? "?")")
     }
 }
 
