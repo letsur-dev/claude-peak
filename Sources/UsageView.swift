@@ -426,6 +426,9 @@ struct UsageView: View {
                 codexBar(label: "5-hour limit", window: codexPrimary)
             }
             if let codexSecondary = codex.secondary {
+                if let bucket = codexSecondary.pacingBucket {
+                    paceLabel(for: bucket)
+                }
                 codexBar(label: "Weekly", window: codexSecondary, showDate: true)
             }
             if !codex.isLive, let asOf = codex.snapshotText {

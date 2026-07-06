@@ -28,6 +28,12 @@ struct CodexWindow {
         formatter.dateFormat = "M/d(EEE) HH:mm"
         return formatter.string(from: date)
     }
+
+    /// Adapts a (weekly) window into a UsageBucket so it can reuse the shared pace / action messages.
+    var pacingBucket: UsageBucket? {
+        guard let date = resetDate else { return nil }
+        return UsageBucket(utilization: usedPercent, resetsAt: ISO8601DateFormatter().string(from: date))
+    }
 }
 
 private struct CodexSnapshot {
