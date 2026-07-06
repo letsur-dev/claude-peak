@@ -9,6 +9,8 @@ final class UsageService: ObservableObject {
     @Published var usageDelta: Double = 0 // change per poll
     @Published var email: String?
     @Published var accountInfo: AccountInfo?
+    @Published var lastUpdated: Date?   // time of the last successful fetch (or cached snapshot)
+    @Published var isStale = false      // most recent refresh failed but cached data is still shown
 
     private let clientId = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     private let tokenUrl = "https://platform.claude.com/v1/oauth/token"
@@ -30,16 +32,19 @@ final class UsageService: ObservableObject {
     }
 
     private var cacheKey: String { "cachedUsage-\(profile)" }
+    private var cacheDateKey: String { "cachedUsageDate-\(profile)" }
 
     private func loadCachedUsage() {
         guard let data = UserDefaults.standard.data(forKey: cacheKey),
               let cached = try? JSONDecoder().decode(UsageResponse.self, from: data) else { return }
         self.usage = cached
+        self.lastUpdated = UserDefaults.standard.object(forKey: cacheDateKey) as? Date
     }
 
     private func cacheUsage(_ usage: UsageResponse) {
         if let data = try? JSONEncoder().encode(usage) {
             UserDefaults.standard.set(data, forKey: cacheKey)
+            UserDefaults.standard.set(Date(), forKey: cacheDateKey)
         }
     }
 
@@ -136,6 +141,8 @@ final class UsageService: ObservableObject {
             self.usage = usageData
             self.error = nil
             self.needsLogin = false
+            self.isStale = false
+            self.lastUpdated = Date()
             cacheUsage(usageData)
             scheduleResetFetch(usageData)
             if accountInfo == nil { await fetchAccountInfo(token: token) }
@@ -153,6 +160,8 @@ final class UsageService: ObservableObject {
                 let usageData = try await requestUsage(token: token)
                 self.usage = usageData
                 self.error = nil
+                self.isStale = false
+                self.lastUpdated = Date()
                 cacheUsage(usageData)
                 scheduleResetFetch(usageData)
                 Log.info("Refresh succeeded, usage: 5h=\(usageData.fiveHour.utilization)%")
@@ -165,6 +174,8 @@ final class UsageService: ObservableObject {
         } catch UsageServiceError.usageFetchFailed(429) {
             if self.usage == nil {
                 self.error = "Rate limited. Will retry shortly."
+            } else {
+                self.isStale = true
             }
             Log.info("Rate limited (429), keeping previous data")
         } catch UsageServiceError.tokenRefreshFailed {

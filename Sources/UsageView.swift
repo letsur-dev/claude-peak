@@ -338,6 +338,9 @@ struct UsageView: View {
 
     @ViewBuilder
     private func usageContent(_ usage: UsageResponse) -> some View {
+        if service.isStale {
+            staleHint(service.lastUpdated)
+        }
         if settings.flameMode != .off {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
@@ -465,6 +468,19 @@ struct UsageView: View {
         Text(title.contains("@") ? title : title.uppercased())
             .font(.system(.caption, design: .monospaced))
             .foregroundColor(.secondary)
+    }
+
+    private func staleHint(_ updated: Date?) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+            Text(updated.map { "updated \(minutesAgo($0))m ago" } ?? "not up to date")
+        }
+        .font(.system(.caption2, design: .monospaced))
+        .foregroundColor(.secondary)
+    }
+
+    private func minutesAgo(_ date: Date) -> Int {
+        max(0, Int(Date().timeIntervalSince(date) / 60))
     }
 
     private func usageBar(label: String, bucket: UsageBucket, showDate: Bool = false) -> some View {
