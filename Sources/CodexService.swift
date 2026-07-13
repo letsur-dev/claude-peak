@@ -15,8 +15,10 @@ struct CodexWindow {
         guard let date = resetDate else { return "—" }
         let interval = date.timeIntervalSinceNow
         guard interval > 0 else { return "now" }
-        let hours = Int(interval) / 3600
+        let days = Int(interval) / 86400
+        let hours = (Int(interval) % 86400) / 3600
         let minutes = (Int(interval) % 3600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
         return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
     }
 
@@ -53,7 +55,7 @@ private struct CodexSnapshot {
 /// no in-app Codex login/logout — the CODEX toggle only controls visibility. Never delete auth.json.
 @MainActor
 final class CodexService: ObservableObject {
-    @Published var primary: CodexWindow?    // 5-hour window
+    @Published var primary: CodexWindow?    // short (5-hour) window — nil on weekly-only plans
     @Published var secondary: CodexWindow?  // weekly window
     @Published var planType: String?
     @Published var snapshotDate: Date?      // set only for the local-log fallback
@@ -159,8 +161,10 @@ final class CodexService: ObservableObject {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let rateLimit = json["rate_limit"] as? [String: Any] else { return (nil, http.statusCode) }
 
-        let primary = CodexService.apiWindow(rateLimit["primary_window"])
-        let secondary = CodexService.apiWindow(rateLimit["secondary_window"])
+        let (primary, secondary) = CodexService.classify([
+            CodexService.apiWindow(rateLimit["primary_window"]),
+            CodexService.apiWindow(rateLimit["secondary_window"]),
+        ])
         guard primary != nil || secondary != nil else { return (nil, http.statusCode) }
         let snapshot = CodexSnapshot(
             primary: primary,
@@ -229,6 +233,23 @@ final class CodexService: ObservableObject {
         return (token, account)
     }
 
+    /// Sorts windows into the short (5-hour) vs weekly slot by their length, rather than by their
+    /// position in the response. OpenAI moved some plans to a weekly-only limit and now delivers it
+    /// in `primary_window`; classifying by length keeps it labelled "Weekly" and leaves the 5-hour
+    /// slot empty, while still handling the older 5-hour + weekly shape.
+    private static func classify(_ windows: [CodexWindow?]) -> (primary: CodexWindow?, weekly: CodexWindow?) {
+        var short: CodexWindow?
+        var weekly: CodexWindow?
+        for case let window? in windows {
+            if let minutes = window.windowMinutes, minutes >= 1440 {
+                weekly = weekly ?? window
+            } else {
+                short = short ?? window
+            }
+        }
+        return (short, weekly)
+    }
+
     private static func apiWindow(_ any: Any?) -> CodexWindow? {
         guard let dict = any as? [String: Any],
               let pct = (dict["used_percent"] as? NSNumber)?.doubleValue else { return nil }
@@ -281,8 +302,10 @@ final class CodexService: ObservableObject {
                   (payload["type"] as? String) == "token_count",
                   let rateLimits = payload["rate_limits"] as? [String: Any] else { return }
 
-            let primary = CodexService.logWindow(from: rateLimits["primary"])
-            let secondary = CodexService.logWindow(from: rateLimits["secondary"])
+            let (primary, secondary) = CodexService.classify([
+                CodexService.logWindow(from: rateLimits["primary"]),
+                CodexService.logWindow(from: rateLimits["secondary"]),
+            ])
             let plan = rateLimits["plan_type"] as? String
             let date = (obj["timestamp"] as? String).flatMap { CodexService.parseDate($0) }
             snapshot = CodexSnapshot(primary: primary, secondary: secondary, planType: plan, date: date)

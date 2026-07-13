@@ -210,12 +210,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        if settings.codexEnabled, codex.available, let codexPrimary = codex.primary {
+        if settings.codexEnabled, codex.available, let codexWindow = codex.primary ?? codex.secondary {
             let codexPart: String
             switch settings.menuBarDisplay {
-            case .percentOnly: codexPart = "\(codexPrimary.percentage)%"
-            case .timeOnly:    codexPart = "\(codexPrimary.timeUntilReset)"
-            case .both:        codexPart = "\(codexPrimary.percentage)% · \(codexPrimary.timeUntilReset)"
+            case .percentOnly: codexPart = "\(codexWindow.percentage)%"
+            case .timeOnly:    codexPart = "\(codexWindow.timeUntilReset)"
+            case .both:        codexPart = "\(codexWindow.percentage)% · \(codexWindow.timeUntilReset)"
             }
             title += " | \(codexPart)"
         }
