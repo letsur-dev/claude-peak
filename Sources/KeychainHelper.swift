@@ -37,6 +37,10 @@ enum TokenStore {
     static func clear(profile: String = "default") {
         try? FileManager.default.removeItem(at: tokenFile(profile: profile))
     }
+
+    static func exists(profile: String = "default") -> Bool {
+        FileManager.default.fileExists(atPath: tokenFile(profile: profile).path)
+    }
 }
 
 enum TokenStoreError: LocalizedError {

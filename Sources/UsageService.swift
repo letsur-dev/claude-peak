@@ -1,7 +1,8 @@
 import Foundation
 
 @MainActor
-final class UsageService: ObservableObject {
+final class UsageService: ObservableObject, Identifiable {
+    nonisolated var id: String { profile }
     @Published var usage: UsageResponse?
     @Published var error: String?
     @Published var isLoading = false
@@ -181,7 +182,7 @@ final class UsageService: ObservableObject {
         } catch UsageServiceError.tokenRefreshFailed {
             self.needsLogin = true
             self.usage = nil
-            TokenStore.clear()
+            TokenStore.clear(profile: profile)
             Log.error("Token refresh failed, re-login required")
         } catch {
             self.error = error.localizedDescription
@@ -297,13 +298,21 @@ final class UsageService: ObservableObject {
 
         let email = json["email_address"] as? String
         var tier: String?
-        if let memberships = json["memberships"] as? [[String: Any]],
-           let org = memberships.first?["organization"] as? [String: Any] {
-            tier = org["rate_limit_tier"] as? String
+        var ravenType: String?
+        if let memberships = json["memberships"] as? [[String: Any]] {
+            // An account can belong to several orgs (e.g. free personal + paid team). Pick the
+            // highest-tier one so the badge reflects the plan actually used, not just the first org.
+            let orgs = memberships.compactMap { $0["organization"] as? [String: Any] }
+            if let best = orgs.max(by: {
+                AccountInfo.tierRank($0["rate_limit_tier"] as? String) < AccountInfo.tierRank($1["rate_limit_tier"] as? String)
+            }) {
+                tier = best["rate_limit_tier"] as? String
+                ravenType = best["raven_type"] as? String
+            }
         }
 
         self.email = email
-        self.accountInfo = AccountInfo(email: email, rateLimitTier: tier, billingType: nil)
+        self.accountInfo = AccountInfo(email: email, rateLimitTier: tier, ravenType: ravenType, billingType: nil)
         Log.info("Account: \(email ?? "?"), plan: \(accountInfo?.planLabel ?? "?")")
     }
 }

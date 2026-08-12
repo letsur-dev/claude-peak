@@ -5,6 +5,7 @@ import Foundation
 struct AccountInfo {
     let email: String?
     let rateLimitTier: String?
+    let ravenType: String?
     let billingType: String?
 
     var planLabel: String? {
@@ -15,7 +16,28 @@ struct AccountInfo {
         case "default_claude_max": return "Max"
         case "default_claude_pro": return "Pro"
         case "default_claude_ai": return "Free"
+        case "default_raven":  // newer subscription line; sub-plan is in raven_type
+            switch ravenType {
+            case "team": return "Team"
+            case "max": return "Max"
+            case "pro": return "Pro"
+            default: return ravenType.map { $0.capitalized } ?? "Team"
+            }
         default: return nil
+        }
+    }
+
+    /// Higher = better plan. Used to pick which org to show when an account belongs to several
+    /// (e.g. a free personal org plus a paid team org). Unknown/API-eval tiers rank lowest.
+    static func tierRank(_ tier: String?) -> Int {
+        switch tier {
+        case "default_claude_max_20x": return 100
+        case "default_claude_max_5x": return 90
+        case "default_claude_max": return 80
+        case "default_raven": return 70
+        case "default_claude_pro": return 60
+        case "default_claude_ai": return 10
+        default: return 0
         }
     }
 }

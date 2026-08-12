@@ -1,8 +1,7 @@
 import SwiftUI
 
 struct UsageView: View {
-    @ObservedObject var service: UsageService
-    @ObservedObject var secondaryService: UsageService
+    @ObservedObject var accounts: AccountsStore
     @ObservedObject var codex: CodexService
     @ObservedObject var settings: AppSettings
     @ObservedObject var activity: ActivityMonitor
@@ -15,21 +14,14 @@ struct UsageView: View {
         VStack(alignment: .leading, spacing: 12) {
             if showSettings {
                 settingsView
-            } else if service.needsLogin {
-                loginView
-            } else if let error = service.error {
-                errorView(error)
-            } else if let usage = service.usage {
-                usageContent(usage)
             } else {
-                ProgressView("Loading...")
-                    .frame(maxWidth: .infinity, alignment: .center)
+                dashboardView
             }
 
             Divider()
 
             HStack {
-                if service.isLoading {
+                if accounts.services.contains(where: { $0.isLoading }) {
                     ProgressView()
                         .controlSize(.small)
                 }
@@ -38,9 +30,9 @@ struct UsageView: View {
                     Image(systemName: showSettings ? "xmark" : "gear")
                 }
                 .buttonStyle(.borderless)
-                if !service.needsLogin && !showSettings {
+                if accounts.services.contains(where: { !$0.needsLogin }) && !showSettings {
                     Button("Refresh") {
-                        Task { await service.fetchUsage() }
+                        Task { await accounts.refreshAll() }
                     }
                     .buttonStyle(.borderless)
                 }
@@ -53,8 +45,7 @@ struct UsageView: View {
         .padding(16)
         .frame(width: 280)
         .onAppear {
-            service.startPolling()
-            secondaryService.startPolling()
+            accounts.startAll()
             if flipTimer == nil {
                 flipTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
                     Task { @MainActor in
@@ -101,7 +92,7 @@ struct UsageView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .onChange(of: settings.pollingInterval) { _ in
-                    service.restartPolling()
+                    accounts.restartAll()
                 }
             }
 
@@ -126,7 +117,7 @@ struct UsageView: View {
                     .foregroundColor(.secondary)
                 Picker("", selection: $settings.weeklyLimitDisplay) {
                     ForEach(WeeklyLimitDisplay.allCases, id: \.self) { option in
-                        Text(option == .scoped ? (service.usage?.weeklyScopedLimits.first?.name ?? option.label) : option.label).tag(option)
+                        Text(option == .scoped ? (firstUsage?.weeklyScopedLimits.first?.name ?? option.label) : option.label).tag(option)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -201,54 +192,6 @@ struct UsageView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("ACCOUNT LABELS")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
-                HStack(spacing: 8) {
-                    TextField("Main", text: $settings.mainAccountLabel)
-                        .font(.system(.caption, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Sub", text: $settings.subAccountLabel)
-                        .font(.system(.caption, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("SUB ACCOUNT")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
-                if secondaryService.needsLogin {
-                    Button("Login Sub Account") {
-                        secondaryService.oauthService.startLogin { result in
-                            secondaryService.handleLoginResult(result)
-                        }
-                    }
-                    .buttonStyle(.borderless)
-                } else {
-                    Button("Logout Sub") {
-                        secondaryService.logout()
-                    }
-                    .buttonStyle(.borderless)
-                    .foregroundColor(.red)
-                }
-            }
-
-            if !service.needsLogin {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("ACCOUNT")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Button("Logout") {
-                        service.logout()
-                        showSettings = false
-                    }
-                    .buttonStyle(.borderless)
-                    .foregroundColor(.red)
-                }
-            }
-
             groupHeader("CODEX")
 
             VStack(alignment: .leading, spacing: 6) {
@@ -301,47 +244,13 @@ struct UsageView: View {
         }
     }
 
-    // MARK: - Login
-
-    private var loginView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "person.crop.circle.badge.questionmark")
-                .font(.largeTitle)
-                .foregroundColor(.secondary)
-
-            Text("Login Required")
-                .font(.system(.headline, design: .monospaced))
-
-            Text("Sign in with your Claude account to view usage.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-
-            Button("Login with Claude") {
-                service.oauthService.startLogin { result in
-                    service.handleLoginResult(result)
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
-
-            if let error = service.error {
-                Text(error)
-                    .font(.caption2)
-                    .foregroundColor(.red)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-    }
 
     // MARK: - Usage Content
 
     @ViewBuilder
-    private func usageContent(_ usage: UsageResponse) -> some View {
-        if service.isStale {
-            staleHint(service.lastUpdated)
-        }
-        if settings.flameMode != .off {
+    private var dashboardView: some View {
+        // Flame / throughput — shown while at least one account is signed in.
+        if settings.flameMode != .off && accounts.services.contains(where: { !$0.needsLogin }) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Text("\(String(format: "%.0f", activity.tokensPerSecond)) tokens/sec")
@@ -363,52 +272,20 @@ struct UsageView: View {
             Divider()
         }
 
-        if secondaryService.usage != nil {
-            HStack {
-                sectionHeader(service.email ?? settings.mainAccountLabel)
-                if let plan = service.accountInfo?.planLabel {
-                    Spacer()
-                    Text(plan)
-                        .font(.system(.caption2, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.15))
-                        .cornerRadius(4)
-                }
-            }
+        ForEach(Array(accounts.services.enumerated()), id: \.element.id) { index, svc in
+            if index > 0 { Divider() }
+            accountSection(svc, fallbackLabel: "Account \(index + 1)")
         }
-        usageBar(
-            label: "5-hour limit",
-            bucket: usage.fiveHour
-        )
 
-        paceLabel(for: usage.sevenDay)
-        weeklyBars(usage)
-
-        if let secondUsage = secondaryService.usage {
-            Divider()
-
-            HStack {
-                sectionHeader(secondaryService.email ?? settings.subAccountLabel)
-                if let plan = secondaryService.accountInfo?.planLabel {
-                    Spacer()
-                    Text(plan)
-                        .font(.system(.caption2, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.15))
-                        .cornerRadius(4)
-                }
-            }
-            usageBar(label: "5-hour limit", bucket: secondUsage.fiveHour)
-            paceLabel(for: secondUsage.sevenDay)
-            weeklyBars(secondUsage)
-
-        } else if !secondaryService.needsLogin && secondaryService.isLoading {
-            Divider()
-            sectionHeader("\(settings.subAccountLabel) Account")
-            ProgressView().controlSize(.small)
+        Divider()
+        Button {
+            let service = accounts.addAccount()
+            service.oauthService.startLogin { service.handleLoginResult($0) }
+        } label: {
+            Label("Add account", systemImage: "plus.circle")
+                .font(.system(.caption, design: .monospaced))
         }
+        .buttonStyle(.borderless)
 
         if settings.codexEnabled && codex.available {
             Divider()
@@ -417,12 +294,7 @@ struct UsageView: View {
                 sectionHeader("⚡ Codex")
                 if let plan = codex.planLabel {
                     Spacer()
-                    Text(plan)
-                        .font(.system(.caption2, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.15))
-                        .cornerRadius(4)
+                    planBadge(plan)
                 }
             }
             if let codexPrimary = codex.primary {
@@ -449,6 +321,81 @@ struct UsageView: View {
                     .foregroundColor(.secondary)
             }
         }
+    }
+
+    /// First signed-in account's usage — used for the scoped weekly-limit label picker.
+    private var firstUsage: UsageResponse? {
+        accounts.services.first(where: { $0.usage != nil })?.usage
+    }
+
+    /// One account block: usage when signed in, an inline Login button when not. Every account
+    /// renders identically so any of them can be logged in/out (and removed) independently.
+    @ViewBuilder
+    private func accountSection(_ svc: UsageService, fallbackLabel: String) -> some View {
+        if svc.needsLogin {
+            HStack {
+                sectionHeader(fallbackLabel)
+                Spacer()
+                Button("Login") {
+                    svc.oauthService.startLogin { svc.handleLoginResult($0) }
+                }
+                .buttonStyle(.borderless)
+                .font(.system(.caption2, design: .monospaced))
+                removeButton(svc)
+            }
+        } else if let usage = svc.usage {
+            if svc.isStale {
+                staleHint(svc.lastUpdated)
+            }
+            HStack {
+                sectionHeader(svc.email ?? fallbackLabel)
+                Spacer()
+                if let plan = svc.accountInfo?.planLabel {
+                    planBadge(plan)
+                }
+                removeButton(svc)
+            }
+            usageBar(label: "5-hour limit", bucket: usage.fiveHour)
+            paceLabel(for: usage.sevenDay)
+            weeklyBars(usage)
+        } else if let error = svc.error {
+            HStack {
+                sectionHeader(fallbackLabel)
+                Spacer()
+                removeButton(svc)
+            }
+            Text(error)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundColor(.red)
+        } else {
+            HStack {
+                sectionHeader(fallbackLabel)
+                Spacer()
+                ProgressView().controlSize(.small)
+                removeButton(svc)
+            }
+        }
+    }
+
+    private func removeButton(_ svc: UsageService) -> some View {
+        Button {
+            accounts.removeAccount(svc)
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+        }
+        .buttonStyle(.borderless)
+        .foregroundColor(.secondary)
+        .font(.caption2)
+        .help("Remove account")
+    }
+
+    private func planBadge(_ plan: String) -> some View {
+        Text(plan)
+            .font(.system(.caption2, design: .monospaced))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.accentColor.opacity(0.15))
+            .cornerRadius(4)
     }
 
     private func groupHeader(_ title: String) -> some View {
@@ -555,19 +502,6 @@ struct UsageView: View {
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundColor(.secondary)
         }
-    }
-
-    private func errorView(_ message: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.title2)
-                .foregroundColor(.orange)
-            Text(message)
-                .font(.caption)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var tpsMessage: String {

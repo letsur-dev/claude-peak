@@ -103,12 +103,6 @@ final class AppSettings: ObservableObject {
     @Published var codexEnabled: Bool {
         didSet { UserDefaults.standard.set(codexEnabled, forKey: "codexEnabled") }
     }
-    @Published var mainAccountLabel: String {
-        didSet { UserDefaults.standard.set(mainAccountLabel, forKey: "mainAccountLabel") }
-    }
-    @Published var subAccountLabel: String {
-        didSet { UserDefaults.standard.set(subAccountLabel, forKey: "subAccountLabel") }
-    }
 
     private init() {
         if let raw = UserDefaults.standard.string(forKey: "menuBarDisplay"),
@@ -150,8 +144,6 @@ final class AppSettings: ObservableObject {
             self.language = .en
         }
 
-        self.mainAccountLabel = UserDefaults.standard.string(forKey: "mainAccountLabel") ?? "Main"
-        self.subAccountLabel = UserDefaults.standard.string(forKey: "subAccountLabel") ?? "Sub"
 
         if let raw = UserDefaults.standard.string(forKey: "weeklyLimitDisplay"),
            let value = WeeklyLimitDisplay(rawValue: raw) {
