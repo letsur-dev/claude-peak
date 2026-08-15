@@ -130,6 +130,7 @@ Pre-built bottles available — no Xcode required.
 
 ```bash
 brew tap letsur-dev/claude-peak https://github.com/letsur-dev/claude-peak.git
+brew trust letsur-dev/claude-peak   # Homebrew 6+ requires trusting third-party taps
 brew install claude-peak
 
 # Launch (auto-links to ~/Applications on first run)
@@ -145,6 +146,12 @@ brew upgrade claude-peak
 
 <details>
 <summary>Troubleshooting</summary>
+
+If you see `Refusing to load formula ... from untrusted tap` (Homebrew 6+):
+
+```bash
+brew trust letsur-dev/claude-peak
+```
 
 If you see `undefined local variable` or tap-related errors:
 

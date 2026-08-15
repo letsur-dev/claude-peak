@@ -333,15 +333,40 @@ struct UsageView: View {
     @ViewBuilder
     private func accountSection(_ svc: UsageService, fallbackLabel: String) -> some View {
         if svc.needsLogin {
-            HStack {
-                sectionHeader(fallbackLabel)
-                Spacer()
-                Button("Login") {
-                    svc.oauthService.startLogin { svc.handleLoginResult($0) }
+            if accounts.services.count == 1 {
+                // First run: a single signed-out account gets the full sign-in prompt.
+                VStack(spacing: 10) {
+                    Image(systemName: "person.crop.circle.badge.questionmark")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("Sign in with your Claude account to view usage.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Login with Claude") {
+                        svc.oauthService.startLogin { svc.handleLoginResult($0) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                    if let error = svc.error {
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                    }
                 }
-                .buttonStyle(.borderless)
-                .font(.system(.caption2, design: .monospaced))
-                removeButton(svc)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 4)
+            } else {
+                HStack {
+                    sectionHeader(fallbackLabel)
+                    Spacer()
+                    Button("Login") {
+                        svc.oauthService.startLogin { svc.handleLoginResult($0) }
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.system(.caption2, design: .monospaced))
+                    removeButton(svc)
+                }
             }
         } else if let usage = svc.usage {
             if svc.isStale {
@@ -377,16 +402,21 @@ struct UsageView: View {
         }
     }
 
+    /// Only offered once there is more than one account — the last one can't be removed, so a
+    /// first-time user can't accidentally end up with an empty dashboard.
+    @ViewBuilder
     private func removeButton(_ svc: UsageService) -> some View {
-        Button {
-            accounts.removeAccount(svc)
-        } label: {
-            Image(systemName: "xmark.circle.fill")
+        if accounts.services.count > 1 {
+            Button {
+                accounts.removeAccount(svc)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+            }
+            .buttonStyle(.borderless)
+            .foregroundColor(.secondary)
+            .font(.caption2)
+            .help("Remove account")
         }
-        .buttonStyle(.borderless)
-        .foregroundColor(.secondary)
-        .font(.caption2)
-        .help("Remove account")
     }
 
     private func planBadge(_ plan: String) -> some View {

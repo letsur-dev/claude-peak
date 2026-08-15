@@ -130,6 +130,7 @@ Pre-built bottle 제공 — Xcode 설치 불필요.
 
 ```bash
 brew tap letsur-dev/claude-peak https://github.com/letsur-dev/claude-peak.git
+brew trust letsur-dev/claude-peak   # Homebrew 6+ 부터 서드파티 tap 신뢰 필요
 brew install claude-peak
 
 # 실행 (첫 실행 시 ~/Applications에 자동 링크)
@@ -145,6 +146,12 @@ brew upgrade claude-peak
 
 <details>
 <summary>문제 해결</summary>
+
+`Refusing to load formula ... from untrusted tap` 에러 발생 시 (Homebrew 6+):
+
+```bash
+brew trust letsur-dev/claude-peak
+```
 
 `undefined local variable` 또는 tap 관련 에러 발생 시:
 
