@@ -118,6 +118,20 @@ struct UsageBucket: Codable {
         return formatter.string(from: resetDate)
     }
 
+    /// Countdown trimmed to one unit for the menu bar ("3h", "45m", "6d"): with several accounts
+    /// a full "3h 20m" per account is too wide. Rounded down, so it never overstates what is left.
+    var shortTimeUntilReset: String {
+        UsageBucket.shortDuration(resetDate?.timeIntervalSinceNow)
+    }
+
+    static func shortDuration(_ interval: TimeInterval?) -> String {
+        guard let interval = interval else { return "" }
+        guard interval > 0 else { return "now" }
+        if interval >= 86400 { return "\(Int(interval) / 86400)d" }
+        if interval >= 3600 { return "\(Int(interval) / 3600)h" }
+        return "\(max(1, Int(interval) / 60))m"
+    }
+
     var percentage: Int {
         min(100, Int(utilization))
     }

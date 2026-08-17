@@ -9,14 +9,31 @@ struct UsageView: View {
     @State private var showSettings = false
     @State private var showAction = false
     @State private var flipTimer: Timer?
+    @State private var contentHeight: CGFloat = 300
+
+    /// Cap on the scrolling area; past this the popover stops growing and scrolls instead.
+    private static let maxContentHeight: CGFloat = 460
+
+    private var isScrolling: Bool { contentHeight > Self.maxContentHeight }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if showSettings {
-                settingsView
-            } else {
-                dashboardView
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if showSettings {
+                        settingsView
+                    } else {
+                        dashboardView
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // Keep the scroller off the content, but only once it actually scrolls.
+                .padding(.trailing, isScrolling ? 12 : 0)
+                .background(GeometryReader { geo in
+                    Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
+                })
             }
+            .frame(height: min(contentHeight, Self.maxContentHeight))
 
             Divider()
 
@@ -44,6 +61,9 @@ struct UsageView: View {
         }
         .padding(16)
         .frame(width: 280)
+        .onPreferenceChange(ContentHeightKey.self) { height in
+            if height > 0 { contentHeight = height }
+        }
         .onAppear {
             accounts.startAll()
             if flipTimer == nil {
@@ -78,6 +98,24 @@ struct UsageView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+            }
+
+            if settings.menuBarDisplay != .percentOnly {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("MENU BAR TIME")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                    Picker("", selection: $settings.menuBarTimeFormat) {
+                        ForEach(MenuBarTimeFormat.allCases, id: \.self) { option in
+                            Text(option.label).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Text(settings.menuBarTimeFormat == .approx ? "3h · shorter with many accounts" : "3h 20m")
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -598,5 +636,15 @@ struct UsageView: View {
         if ratio < 1.1 { return .secondary }
         if ratio < 1.4 { return .orange }
         return .red
+    }
+}
+
+/// Measures the popover content so it can size itself to fit (up to a cap) instead of clipping
+/// once several accounts are listed.
+private struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

@@ -22,6 +22,11 @@ struct CodexWindow {
         return hours > 0 ? "\(hours)h \(minutes)m" : "\(minutes)m"
     }
 
+    /// Same one-unit countdown as `UsageBucket.shortTimeUntilReset`, for the menu bar.
+    var shortTimeUntilReset: String {
+        UsageBucket.shortDuration(resetDate?.timeIntervalSinceNow)
+    }
+
     var resetDateString: String {
         guard let date = resetDate else { return "—" }
         guard date.timeIntervalSinceNow > 0 else { return "now" }

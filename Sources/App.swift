@@ -38,10 +38,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover = NSPopover()
         popover.contentSize = NSSize(width: 280, height: 400)
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(
+        let hosting = NSHostingController(
             rootView: UsageView(accounts: accounts, codex: codex, settings: settings, activity: activity, updateChecker: updateChecker)
                 .frame(width: 280)
         )
+        // Let the popover follow the SwiftUI content's height (the view caps and scrolls itself),
+        // so adding accounts grows it instead of clipping the bottom.
+        hosting.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = hosting
 
         if let button = statusItem.button {
             button.action = #selector(togglePopover)
@@ -173,31 +177,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = nil
         }
 
-        // One segment per signed-in account, joined with " / " (all accounts shown).
-        let parts = accounts.services.compactMap { $0.usage }.map { usage -> String in
+        // One segment per signed-in account, joined with " / " (all accounts shown). The countdown
+        // is trimmed to a single unit — with several accounts a full "3h 20m" each would run the
+        // menu bar to 50+ characters. Exact times live in the tooltip.
+        let approx = settings.menuBarTimeFormat == .approx
+        let signedIn = accounts.services.compactMap { $0.usage }
+        let parts = signedIn.map { usage -> String in
+            let time = approx ? usage.fiveHour.shortTimeUntilReset : usage.fiveHour.timeUntilReset
             switch settings.menuBarDisplay {
             case .percentOnly: return "\(usage.fiveHour.percentage)%"
-            case .timeOnly:    return usage.fiveHour.timeUntilReset
-            case .both:        return "\(usage.fiveHour.percentage)% · \(usage.fiveHour.timeUntilReset)"
+            case .timeOnly:    return time
+            case .both:        return "\(usage.fiveHour.percentage)%·\(time)"
             }
         }
         guard !parts.isEmpty else {
             button.title = " —"
+            button.toolTip = nil
             return
         }
         var title = " " + parts.joined(separator: " / ")
+        var tooltip = signedIn.map { "\($0.fiveHour.percentage)% · resets in \($0.fiveHour.timeUntilReset)" }
 
         if settings.codexEnabled, codex.available, let codexWindow = codex.primary ?? codex.secondary {
-            let codexPart: String
+            let codexTime = approx ? codexWindow.shortTimeUntilReset : codexWindow.timeUntilReset
             switch settings.menuBarDisplay {
-            case .percentOnly: codexPart = "\(codexWindow.percentage)%"
-            case .timeOnly:    codexPart = "\(codexWindow.timeUntilReset)"
-            case .both:        codexPart = "\(codexWindow.percentage)% · \(codexWindow.timeUntilReset)"
+            case .percentOnly: title += " | \(codexWindow.percentage)%"
+            case .timeOnly:    title += " | \(codexTime)"
+            case .both:        title += " | \(codexWindow.percentage)%·\(codexTime)"
             }
-            title += " | \(codexPart)"
+            tooltip.append("Codex \(codexWindow.percentage)% · resets in \(codexWindow.timeUntilReset)")
         }
 
         button.title = title
+        button.toolTip = tooltip.joined(separator: "\n")
     }
 
     private func animationInterval(for tps: Double) -> TimeInterval? {

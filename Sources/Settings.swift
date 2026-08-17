@@ -14,6 +14,20 @@ enum MenuBarDisplay: String, CaseIterable {
     }
 }
 
+/// How the menu-bar countdown is written. With several accounts the exact form gets long, so the
+/// approximate one trims it to a single unit ("3h" instead of "3h 20m").
+enum MenuBarTimeFormat: String, CaseIterable {
+    case approx = "approx"
+    case exact = "exact"
+
+    var label: String {
+        switch self {
+        case .approx: return "Approx"
+        case .exact: return "Exact"
+        }
+    }
+}
+
 enum FlameMode: String, CaseIterable {
     case off = "off"
     case single = "single"
@@ -79,6 +93,9 @@ final class AppSettings: ObservableObject {
     @Published var menuBarDisplay: MenuBarDisplay {
         didSet { UserDefaults.standard.set(menuBarDisplay.rawValue, forKey: "menuBarDisplay") }
     }
+    @Published var menuBarTimeFormat: MenuBarTimeFormat {
+        didSet { UserDefaults.standard.set(menuBarTimeFormat.rawValue, forKey: "menuBarTimeFormat") }
+    }
     @Published var pollingInterval: PollingInterval {
         didSet { UserDefaults.standard.set(pollingInterval.rawValue, forKey: "pollingInterval") }
     }
@@ -110,6 +127,13 @@ final class AppSettings: ObservableObject {
             self.menuBarDisplay = value
         } else {
             self.menuBarDisplay = .both
+        }
+
+        if let raw = UserDefaults.standard.string(forKey: "menuBarTimeFormat"),
+           let value = MenuBarTimeFormat(rawValue: raw) {
+            self.menuBarTimeFormat = value
+        } else {
+            self.menuBarTimeFormat = .approx
         }
 
         let interval = UserDefaults.standard.integer(forKey: "pollingInterval")
