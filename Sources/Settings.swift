@@ -102,15 +102,6 @@ final class AppSettings: ObservableObject {
     @Published var flameMode: FlameMode {
         didSet { UserDefaults.standard.set(flameMode.rawValue, forKey: "flameMode") }
     }
-    @Published var remoteEnabled: Bool {
-        didSet { UserDefaults.standard.set(remoteEnabled, forKey: "remoteEnabled") }
-    }
-    @Published var remoteHost: String {
-        didSet { UserDefaults.standard.set(remoteHost, forKey: "remoteHost") }
-    }
-    @Published var remotePort: Int {
-        didSet { UserDefaults.standard.set(remotePort, forKey: "remotePort") }
-    }
     @Published var language: AppLanguage {
         didSet { UserDefaults.standard.set(language.rawValue, forKey: "language") }
     }
@@ -150,24 +141,12 @@ final class AppSettings: ObservableObject {
             self.flameMode = .dynamic
         }
 
-        self.remoteEnabled = UserDefaults.standard.bool(forKey: "remoteEnabled")
-
-        if let host = UserDefaults.standard.string(forKey: "remoteHost"), !host.isEmpty {
-            self.remoteHost = host
-        } else {
-            self.remoteHost = ""
-        }
-
-        let port = UserDefaults.standard.integer(forKey: "remotePort")
-        self.remotePort = port > 0 ? port : 3200
-
         if let raw = UserDefaults.standard.string(forKey: "language"),
            let value = AppLanguage(rawValue: raw) {
             self.language = value
         } else {
             self.language = .en
         }
-
 
         if let raw = UserDefaults.standard.string(forKey: "weeklyLimitDisplay"),
            let value = WeeklyLimitDisplay(rawValue: raw) {

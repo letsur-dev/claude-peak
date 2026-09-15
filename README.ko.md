@@ -112,12 +112,10 @@ MADMAX 모드를 켜고 토큰 처리량의 한계를 밀어봐. 불꽃 단계�
 ## 기능
 
 - **실시간 불꽃 애니메이션** — `~/.claude/projects/` JSONL 로그를 감시, 토큰 처리량에 따라 불꽃 애니메이션
-- **원격 서버 모니터링** — 원격 머신(예: Tailscale)의 토큰 활동을 합산하여 하나의 불꽃으로 표시
 - **메뉴바 표시** — 5-hour utilization %, reset 남은 시간 (설정 가능)
 - **상세 Popover** — 5-hour, 7-day(All models), 7-day(Sonnet) 사용량 + reset 타이머
 - **주간 페이스 표시** — 사용량 페이스가 적당한지, 여유 있는지, 위험한지 알려줌
 - **한영 메시지 전환** — 설정에서 메시지 언어 변경 가능
-- **설정** — 표시 형식, 갱신 주기 (1/5/10분), 불꽃 모드, 메시지 언어, 원격 서버
 - **OAuth PKCE** — 브라우저 기반 인증, 자동 토큰 갱신
 
 > **참고:** Extra Usage 표시는 v1.4.5에서 UI 간소화를 위해 제거되었습니다. 필요하시면 [이슈를 열어주세요](https://github.com/letsur-dev/claude-peak/issues).
@@ -177,45 +175,6 @@ cd claude-peak
 # 실행
 open ~/Applications/Claude\ Peak.app
 ```
-
-## 원격 서버
-
-원격 머신에서 돌아가는 Claude Code 세션을 모니터링한다. HTTP로 토큰 활동을 가져와서 로컬과 합산 — 불꽃이 총 처리량을 반영한다.
-
-### 설정
-
-**원격 머신에서 (Node.js 18+ 필요):**
-
-```bash
-npx claude-peak-server          # 백그라운드로 실행
-npx claude-peak-server status   # 상태 확인
-npx claude-peak-server down     # 종료
-```
-
-서버는 `~/.claude/projects/**/*.jsonl`을 2초마다 스캔하고 다음 엔드포인트를 노출한다:
-- `GET /api/activity` → `{ tokensPerSecond, recentTokens: [{date, tokens}] }`
-- `GET /health` → `{ ok: true }`
-
-기본 포트: `3200` (`PORT` 환경변수로 변경 가능).
-
-**Mac에서:**
-
-Settings → Remote Server → 토글 ON → host와 port 입력 → 🟢 = 연결됨.
-
-**HTTP**로 직접 연결 (Tailscale, LAN, VPN 등 네트워크 접근 필요).
-
-<details>
-<summary>SSH만 되는 환경</summary>
-
-SSH 포트포워딩으로 우회:
-
-```bash
-ssh -L 3200:localhost:3200 your-server
-```
-
-Settings에서 host를 `localhost`로 설정하면 끝.
-
-</details>
 
 ## Tech Details
 

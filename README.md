@@ -112,12 +112,11 @@ Four modes available in settings:
 ## Features
 
 - **Real-time flame animation** — Monitors `~/.claude/projects/` JSONL logs, animates flames based on token throughput
-- **Remote server monitoring** — Aggregate token activity from remote machines (e.g. via Tailscale) into a single flame display
 - **Menu bar display** — 5-hour utilization %, time until reset (configurable)
 - **Detailed popover** — 5-hour, 7-day (All models), 7-day (Sonnet) usage + reset timers
 - **Weekly pace indicator** — Shows whether you're on track, have room to spare, or burning too fast
 - **Korean / English messages** — Toggle message language in settings
-- **Settings** — Display format, refresh interval (1/5/10 min), flame mode, message language, remote server
+- **Settings** — Display format, refresh interval (5/10 min), flame mode, message language
 - **OAuth PKCE** — Browser-based auth with automatic token refresh
 
 > **Note:** Extra Usage display was removed in v1.4.5 to keep the UI clean. If you'd like it back, [open an issue](https://github.com/letsur-dev/claude-peak/issues).
@@ -177,45 +176,6 @@ cd claude-peak
 # Launch
 open ~/Applications/Claude\ Peak.app
 ```
-
-## Remote Server
-
-Monitor Claude Code sessions running on remote machines. Token activity is fetched via HTTP and merged with local activity — flames reflect combined throughput.
-
-### Setup
-
-**On the remote machine (requires Node.js 18+):**
-
-```bash
-npx claude-peak-server          # starts in background
-npx claude-peak-server status   # check if running
-npx claude-peak-server down     # stop
-```
-
-The server scans `~/.claude/projects/**/*.jsonl` every 2 seconds and exposes:
-- `GET /api/activity` → `{ tokensPerSecond, recentTokens: [{date, tokens}] }`
-- `GET /health` → `{ ok: true }`
-
-Default port: `3200` (override with `PORT` env var).
-
-**On your Mac:**
-
-Settings → Remote Server → toggle ON → enter host and port → 🟢 = connected.
-
-Connects via **HTTP** (direct network access required, e.g. Tailscale, LAN, VPN).
-
-<details>
-<summary>SSH-only environments</summary>
-
-If only SSH access is available, use port forwarding:
-
-```bash
-ssh -L 3200:localhost:3200 your-server
-```
-
-Then set host to `localhost` in Settings.
-
-</details>
 
 ## Tech Details
 
