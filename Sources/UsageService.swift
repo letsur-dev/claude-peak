@@ -116,7 +116,9 @@ final class UsageService: ObservableObject, Identifiable {
             accessToken: pair.accessToken,
             refreshToken: pair.refreshToken,
             expiresAt: Int64((Date().timeIntervalSince1970 + Double(pair.expiresIn)) * 1000),
-            email: pair.email
+            email: pair.email,
+            organizationUUID: pair.organizationUUID,
+            organizationName: pair.organizationName
         )
         do {
             try TokenStore.save(tokens, profile: profile)
@@ -247,10 +249,14 @@ final class UsageService: ObservableObject, Identifiable {
         }
 
         let refreshResp = try JSONDecoder().decode(RefreshResponse.self, from: data)
+        let previous = try? TokenStore.load(profile: profile)
         let newTokens = StoredTokens(
             accessToken: refreshResp.access_token,
             refreshToken: refreshResp.refresh_token ?? refreshToken,
-            expiresAt: Int64((Date().timeIntervalSince1970 + Double(refreshResp.expires_in)) * 1000)
+            expiresAt: Int64((Date().timeIntervalSince1970 + Double(refreshResp.expires_in)) * 1000),
+            email: previous?.email,
+            organizationUUID: previous?.organizationUUID,
+            organizationName: previous?.organizationName
         )
         try TokenStore.save(newTokens, profile: profile)
 
@@ -303,7 +309,13 @@ final class UsageService: ObservableObject, Identifiable {
             // An account can belong to several orgs (e.g. free personal + paid team). Pick the
             // highest-tier one so the badge reflects the plan actually used, not just the first org.
             let orgs = memberships.compactMap { $0["organization"] as? [String: Any] }
-            if let best = orgs.max(by: {
+            for org in orgs {
+                Log.info("Org membership: name=\(org["name"] ?? "?"), rate_limit_tier=\(org["rate_limit_tier"] ?? "nil"), raven_type=\(org["raven_type"] ?? "nil"), billing_type=\(org["billing_type"] ?? "nil"), capabilities=\(org["capabilities"] ?? "nil")")
+            }
+            // Prefer the org this token was issued for; usage is per org, so the badge must match it.
+            let tokenOrg = (try? TokenStore.load(profile: profile))?.organizationUUID
+            let matching = tokenOrg.flatMap { uuid in orgs.first { ($0["uuid"] as? String) == uuid } }
+            if let best = matching ?? orgs.max(by: {
                 AccountInfo.tierRank($0["rate_limit_tier"] as? String) < AccountInfo.tierRank($1["rate_limit_tier"] as? String)
             }) {
                 tier = best["rate_limit_tier"] as? String

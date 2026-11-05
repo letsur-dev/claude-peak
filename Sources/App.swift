@@ -25,8 +25,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var frameIndex = 0
     private var cancellables = Set<AnyCancellable>()
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.info("Claude Peak launched")
+        // The SwiftUI `Settings { EmptyView() }` scene only exists because an App needs a scene.
+        // macOS can still open it (Cmd+, or a relaunch), which shows an empty window; close it.
+        NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)
+            .compactMap { $0.object as? NSWindow }
+            .filter { $0.identifier?.rawValue.contains("Settings") == true || $0.title.hasSuffix("Settings") }
+            .sink { $0.close() }
+            .store(in: &cancellables)
         accounts = AccountsStore()
         codex = CodexService()
         settings = AppSettings.shared
