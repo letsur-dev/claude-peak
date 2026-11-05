@@ -6,6 +6,7 @@ struct UsageView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var activity: ActivityMonitor
     @ObservedObject var updateChecker: UpdateChecker
+    @ObservedObject private var launchAtLogin = LaunchAtLogin.shared
     @State private var showSettings = false
     @State private var showAction = false
     @State private var flipTimer: Timer?
@@ -86,6 +87,33 @@ struct UsageView: View {
                 .font(.system(.headline, design: .monospaced))
 
             groupHeader("GENERAL")
+
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle(isOn: Binding(
+                    get: { launchAtLogin.isEnabled },
+                    set: { launchAtLogin.set($0) }
+                )) {
+                    Text("LAUNCH AT LOGIN")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+
+                if launchAtLogin.needsApproval {
+                    Button("Allow in System Settings › Login Items") {
+                        launchAtLogin.openLoginItemsSettings()
+                    }
+                    .buttonStyle(.link)
+                    .font(.system(.caption2, design: .monospaced))
+                }
+                if let error = launchAtLogin.lastError {
+                    Text(error)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundColor(.red)
+                }
+            }
+            .onAppear { launchAtLogin.refresh() }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("MENU BAR DISPLAY")
