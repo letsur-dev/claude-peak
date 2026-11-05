@@ -33,6 +33,10 @@ final class UsageService: ObservableObject, Identifiable {
     private var tokenExpiresAt: Date?
     private var pollingTimer: Timer?
     private var resetTimer: Timer?
+    /// Bumped on logout and login. Async work captures it when it starts and drops its result
+    /// if it changed meanwhile, so a request that began before a logout can't restore usage,
+    /// account info, or a token that the logout deleted.
+    private var sessionGeneration = 0
 
     let profile: String
     let oauthService = OAuthService()
@@ -96,7 +100,10 @@ final class UsageService: ObservableObject, Identifiable {
     }
 
     func logout() {
+        sessionGeneration += 1
         TokenStore.clear(profile: profile)
+        UserDefaults.standard.removeObject(forKey: cacheKey)
+        UserDefaults.standard.removeObject(forKey: cacheDateKey)
         cachedAccessToken = nil
         tokenExpiresAt = nil
         resetTimer?.invalidate()
@@ -130,6 +137,7 @@ final class UsageService: ObservableObject, Identifiable {
             organizationName: pair.organizationName
         )
         do {
+            sessionGeneration += 1
             try TokenStore.save(tokens, profile: profile)
             self.cachedAccessToken = pair.accessToken
             self.tokenExpiresAt = Date().addingTimeInterval(Double(pair.expiresIn))
@@ -144,10 +152,12 @@ final class UsageService: ObservableObject, Identifiable {
     func fetchUsage() async {
         isLoading = true
         defer { isLoading = false }
+        let generation = sessionGeneration
 
         do {
             let token = try await getValidAccessToken()
             let usageData = try await requestUsage(token: token)
+            guard generation == sessionGeneration else { return }
             let previousUtilization = self.usage?.fiveHour.utilization ?? usageData.fiveHour.utilization
             self.usageDelta = max(0, usageData.fiveHour.utilization - previousUtilization)
             self.usage = usageData
@@ -157,8 +167,11 @@ final class UsageService: ObservableObject, Identifiable {
             self.lastUpdated = Date()
             cacheUsage(usageData)
             scheduleResetFetch(usageData)
-            if accountInfo == nil { await fetchAccountInfo(token: token) }
+            if accountInfo == nil { await fetchAccountInfo(token: token, generation: generation) }
             Log.info("Usage fetched: 5h=\(usageData.fiveHour.utilization)%, 7d=\(usageData.sevenDay.utilization)%")
+        } catch where generation != sessionGeneration {
+            // Logged out or in again while this request was running; its outcome is stale.
+            Log.info("Dropping stale usage result after logout/login")
         } catch is TokenStoreError {
             self.needsLogin = true
             self.error = nil
@@ -170,6 +183,7 @@ final class UsageService: ObservableObject, Identifiable {
             do {
                 let token = try await refreshAndRetry()
                 let usageData = try await requestUsage(token: token)
+                guard generation == sessionGeneration else { return }
                 self.usage = usageData
                 self.error = nil
                 self.isStale = false
@@ -178,6 +192,7 @@ final class UsageService: ObservableObject, Identifiable {
                 scheduleResetFetch(usageData)
                 Log.info("Refresh succeeded, usage: 5h=\(usageData.fiveHour.utilization)%")
             } catch {
+                guard generation == sessionGeneration else { return }
                 self.needsLogin = true
                 self.error = "Session expired. Please login again."
                 TokenStore.clear(profile: profile)
@@ -233,6 +248,7 @@ final class UsageService: ObservableObject, Identifiable {
     }
 
     private func refreshAccessToken(refreshToken: String) async throws -> String {
+        let generation = sessionGeneration
         var request = URLRequest(url: URL(string: tokenUrl)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -258,6 +274,8 @@ final class UsageService: ObservableObject, Identifiable {
         }
 
         let refreshResp = try JSONDecoder().decode(RefreshResponse.self, from: data)
+        // A logout during the request deleted the token; don't write a fresh one back.
+        guard generation == sessionGeneration else { throw CancellationError() }
         let previous = try? TokenStore.load(profile: profile)
         let newTokens = StoredTokens(
             accessToken: refreshResp.access_token,
@@ -301,7 +319,7 @@ final class UsageService: ObservableObject, Identifiable {
         return try JSONDecoder().decode(UsageResponse.self, from: data)
     }
 
-    private func fetchAccountInfo(token: String) async {
+    private func fetchAccountInfo(token: String, generation: Int) async {
         var request = URLRequest(url: URL(string: accountUrl)!)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
@@ -309,7 +327,8 @@ final class UsageService: ObservableObject, Identifiable {
 
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse, http.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              generation == sessionGeneration else { return }
 
         let email = json["email_address"] as? String
         var tier: String?
