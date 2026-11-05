@@ -115,6 +115,21 @@ final class UsageService: ObservableObject, Identifiable {
         accountInfo = nil
     }
 
+    /// Starts the OAuth flow for this account. The result is dropped if the account was logged
+    /// out or removed while the browser login was still open, so a deleted profile can't be
+    /// brought back by a late callback.
+    func login() {
+        let generation = sessionGeneration
+        oauthService.startLogin { [weak self] result in
+            guard let self else { return }
+            guard generation == self.sessionGeneration else {
+                Log.info("Ignoring login result: account was logged out or removed during login")
+                return
+            }
+            self.handleLoginResult(result)
+        }
+    }
+
     func handleLoginResult(_ result: Result<TokenPair, Error>) {
         switch result {
         case .failure(let error):
@@ -143,6 +158,11 @@ final class UsageService: ObservableObject, Identifiable {
             self.tokenExpiresAt = Date().addingTimeInterval(Double(pair.expiresIn))
             self.needsLogin = false
             self.error = nil
+            // This may be a different account or org than before (e.g. after a failed refresh),
+            // so drop the previous account's details and let fetchUsage look them up again.
+            self.accountInfo = nil
+            self.email = pair.email
+            self.usage = nil
             Task { await fetchUsage() }
         } catch {
             self.error = "Failed to save tokens"
