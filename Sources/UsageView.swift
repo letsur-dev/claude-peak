@@ -402,21 +402,21 @@ struct UsageView: View {
         }
     }
 
-    /// Only offered once there is more than one account — the last one can't be removed, so a
-    /// first-time user can't accidentally end up with an empty dashboard.
+    /// Removes the account, or logs it out when it's the last one (the list is never left empty).
     @ViewBuilder
     private func removeButton(_ svc: UsageService) -> some View {
-        if accounts.services.count > 1 {
-            Button {
-                accounts.removeAccount(svc)
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-            }
-            .buttonStyle(.borderless)
-            .foregroundColor(.secondary)
-            .font(.caption2)
-            .help("Remove account")
+        // With one account left, log it out instead of removing it, so there is always a way
+        // to switch to a different account (the login button replaces it).
+        let isLast = accounts.services.count <= 1
+        Button {
+            if isLast { svc.logout() } else { accounts.removeAccount(svc) }
+        } label: {
+            Image(systemName: "xmark.circle.fill")
         }
+        .buttonStyle(.borderless)
+        .foregroundColor(.secondary)
+        .font(.caption2)
+        .help(isLast ? "Log out" : "Remove account")
     }
 
     private func planBadge(_ plan: String) -> some View {
