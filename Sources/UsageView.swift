@@ -378,7 +378,9 @@ struct UsageView: View {
                 }
                 removeButton(svc)
             }
-            usageBar(label: "5-hour limit", bucket: usage.fiveHour)
+            if usage.hasSessionLimit {
+                usageBar(label: "5-hour limit", bucket: usage.fiveHour)
+            }
             paceLabel(for: usage.sevenDay)
             weeklyBars(usage)
         } else if let error = svc.error {
