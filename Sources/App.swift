@@ -7,7 +7,10 @@ struct ClaudePeakApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
 
     var body: some Scene {
-        Settings { EmptyView() }
+        // An App needs a scene, but the UI is the AppDelegate's own NSStatusItem + popover.
+        // A never-inserted MenuBarExtra creates no window; `Settings { EmptyView() }` used to
+        // show an empty "Claude Peak Settings" window at launch.
+        MenuBarExtra("Claude Peak", isInserted: .constant(false)) { EmptyView() }
     }
 }
 
@@ -31,11 +34,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.info("Claude Peak launched")
-        // The SwiftUI `Settings { EmptyView() }` scene only exists because an App needs a scene.
-        // macOS can still open it (Cmd+, or a relaunch), which shows an empty window; close it.
-        NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)
+        // Safety net: if a stray SwiftUI settings window still appears (even unfocused), close it.
+        let isStraySettings: (NSWindow) -> Bool = {
+            $0.identifier?.rawValue.contains("Settings") == true || $0.title.hasSuffix("Settings")
+        }
+        DispatchQueue.main.async {
+            NSApp.windows.filter(isStraySettings).forEach { $0.close() }
+        }
+        NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)
             .compactMap { $0.object as? NSWindow }
-            .filter { $0.identifier?.rawValue.contains("Settings") == true || $0.title.hasSuffix("Settings") }
+            .filter { $0.isVisible && isStraySettings($0) }
             .sink { $0.close() }
             .store(in: &cancellables)
         accounts = AccountsStore()
