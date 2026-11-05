@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import ServiceManagement
 
 /// "Launch at login" via SMAppService (macOS 13+). The system's login-item registration is the
@@ -13,16 +13,38 @@ final class LaunchAtLogin: ObservableObject {
     @Published private(set) var needsApproval = false
     @Published private(set) var lastError: String?
 
-    private init() { refresh() }
+    /// Status when `lastError` was set; the error is cleared once the status moves on.
+    private var statusAtError: SMAppService.Status?
+    private var observers: [NSObjectProtocol] = []
+
+    private init() {
+        refresh()
+        // The popover's view is reused, so `.onAppear` doesn't fire again after the user comes
+        // back from System Settings (e.g. having approved the login item). Re-read the status
+        // whenever the app becomes active or a window (the popover) becomes key.
+        let center = NotificationCenter.default
+        for name in [NSApplication.didBecomeActiveNotification, NSWindow.didBecomeKeyNotification] {
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.refresh()
+            })
+        }
+    }
 
     func refresh() {
         let status = SMAppService.mainApp.status
-        isEnabled = status == .enabled || status == .requiresApproval
-        needsApproval = status == .requiresApproval
+        if let failed = statusAtError, failed != status {
+            lastError = nil
+            statusAtError = nil
+        }
+        let enabled = status == .enabled || status == .requiresApproval
+        let approval = status == .requiresApproval
+        if isEnabled != enabled { isEnabled = enabled }
+        if needsApproval != approval { needsApproval = approval }
     }
 
     func set(_ enabled: Bool) {
         lastError = nil
+        statusAtError = nil
         do {
             if enabled {
                 try SMAppService.mainApp.register()
@@ -32,6 +54,7 @@ final class LaunchAtLogin: ObservableObject {
             Log.info("Launch at login \(enabled ? "enabled" : "disabled"), status=\(SMAppService.mainApp.status.rawValue)")
         } catch {
             lastError = error.localizedDescription
+            statusAtError = SMAppService.mainApp.status
             Log.error("Launch at login \(enabled ? "register" : "unregister") failed: \(error.localizedDescription)")
         }
         refresh()
