@@ -373,7 +373,7 @@ struct UsageView: View {
             HStack {
                 sectionHeader(svc.email ?? fallbackLabel)
                 Spacer()
-                if let plan = svc.accountInfo?.planLabel {
+                if let plan = svc.planLabel {
                     planBadge(plan)
                 }
                 removeButton(svc)

@@ -10,6 +10,15 @@ final class UsageService: ObservableObject, Identifiable {
     @Published var usageDelta: Double = 0 // change per poll
     @Published var email: String?
     @Published var accountInfo: AccountInfo?
+
+    /// Plan badge text. Ultra reports the Max 20x rate-limit tier and no distinct capability
+    /// (just "claude_max", "chat"); unlike Max 20x it has no 5-hour session limit, so use that.
+    var planLabel: String? {
+        if accountInfo?.rateLimitTier == "default_claude_max_20x", usage?.hasSessionLimit == false {
+            return "Ultra"
+        }
+        return accountInfo?.planLabel
+    }
     @Published var lastUpdated: Date?   // time of the last successful fetch (or cached snapshot)
     @Published var isStale = false      // most recent refresh failed but cached data is still shown
 
