@@ -163,6 +163,8 @@ final class UsageService: ObservableObject, Identifiable {
             self.accountInfo = nil
             self.email = pair.email
             self.usage = nil
+            UserDefaults.standard.removeObject(forKey: cacheKey)
+            UserDefaults.standard.removeObject(forKey: cacheDateKey)
             Task { await fetchUsage() }
         } catch {
             self.error = "Failed to save tokens"
