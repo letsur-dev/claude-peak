@@ -52,6 +52,10 @@ final class LaunchAtLogin: ObservableObject {
                 try SMAppService.mainApp.unregister()
             }
             Log.info("Launch at login \(enabled ? "enabled" : "disabled"), status=\(SMAppService.mainApp.status.rawValue)")
+        } catch let error as NSError where !enabled && error.code == Int(kSMErrorJobNotFound) {
+            // Already unregistered (e.g. removed in System Settings since the last refresh):
+            // the requested "off" state is in effect, so this isn't an error.
+            Log.info("Launch at login already disabled (job not found)")
         } catch {
             lastError = error.localizedDescription
             statusAtError = SMAppService.mainApp.status
