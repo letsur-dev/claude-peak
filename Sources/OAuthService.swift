@@ -96,9 +96,16 @@ final class OAuthService: ObservableObject {
         }
 
         var email: String?
-        if let rawJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let account = rawJson["account"] as? [String: Any] {
-            email = account["email_address"] as? String
+        var orgUUID: String?
+        var orgName: String?
+        if let rawJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let account = rawJson["account"] as? [String: Any] {
+                email = account["email_address"] as? String
+            }
+            if let org = rawJson["organization"] as? [String: Any] {
+                orgUUID = org["uuid"] as? String
+                orgName = org["name"] as? String
+            }
         }
 
         struct TokenResponse: Codable {
@@ -112,7 +119,9 @@ final class OAuthService: ObservableObject {
             accessToken: tokenResp.access_token,
             refreshToken: tokenResp.refresh_token,
             expiresIn: tokenResp.expires_in ?? 3600,
-            email: email
+            email: email,
+            organizationUUID: orgUUID,
+            organizationName: orgName
         )
     }
 
@@ -133,6 +142,8 @@ struct TokenPair {
     let refreshToken: String?
     let expiresIn: Int
     let email: String?
+    let organizationUUID: String?
+    let organizationName: String?
 }
 
 enum OAuthError: LocalizedError {

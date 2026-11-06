@@ -45,11 +45,15 @@ struct AccountInfo {
 // MARK: - Usage API Response
 
 struct UsageResponse: Codable {
+    /// Session (5-hour) bucket. Plans with weekly-only limits (e.g. Ultra) have none;
+    /// then this mirrors `sevenDay` so the menu bar still shows the binding limit.
     let fiveHour: UsageBucket
     let sevenDay: UsageBucket
     let sevenDaySonnet: UsageBucket?
-    let extraUsage: ExtraUsage
+    let extraUsage: ExtraUsage?
     let limits: [Limit]?
+    /// False when the plan has no 5-hour session limit.
+    let hasSessionLimit: Bool
 
     enum CodingKeys: String, CodingKey {
         case fiveHour = "five_hour"
@@ -57,6 +61,43 @@ struct UsageResponse: Codable {
         case sevenDaySonnet = "seven_day_sonnet"
         case extraUsage = "extra_usage"
         case limits
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // `try?` so a key that is present but null, or partially null, is treated as missing.
+        let limits = (try? c.decodeIfPresent([Limit].self, forKey: .limits)) ?? nil
+        self.limits = limits
+        sevenDaySonnet = (try? c.decodeIfPresent(UsageBucket.self, forKey: .sevenDaySonnet)) ?? nil
+        extraUsage = (try? c.decodeIfPresent(ExtraUsage.self, forKey: .extraUsage)) ?? nil
+
+        let session = ((try? c.decodeIfPresent(UsageBucket.self, forKey: .fiveHour)) ?? nil)
+            ?? Self.bucket(in: limits, kind: "session")
+        let weekly = ((try? c.decodeIfPresent(UsageBucket.self, forKey: .sevenDay)) ?? nil)
+            ?? Self.bucket(in: limits, kind: "weekly_all")
+
+        guard let week = weekly ?? session else {
+            throw DecodingError.keyNotFound(CodingKeys.sevenDay, .init(
+                codingPath: c.codingPath,
+                debugDescription: "Usage response has neither a session nor a weekly limit"))
+        }
+        sevenDay = week
+        fiveHour = session ?? week
+        hasSessionLimit = session != nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        if hasSessionLimit { try c.encode(fiveHour, forKey: .fiveHour) }
+        try c.encode(sevenDay, forKey: .sevenDay)
+        try c.encodeIfPresent(sevenDaySonnet, forKey: .sevenDaySonnet)
+        try c.encodeIfPresent(extraUsage, forKey: .extraUsage)
+        try c.encodeIfPresent(limits, forKey: .limits)
+    }
+
+    private static func bucket(in limits: [Limit]?, kind: String) -> UsageBucket? {
+        guard let limit = limits?.first(where: { $0.kind == kind }) else { return nil }
+        return UsageBucket(utilization: Double(limit.percent), resetsAt: limit.resetsAt)
     }
 
     /// Model-scoped weekly limits (e.g. "Fable only") from the new `limits` array.

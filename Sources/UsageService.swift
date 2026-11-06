@@ -10,6 +10,15 @@ final class UsageService: ObservableObject, Identifiable {
     @Published var usageDelta: Double = 0 // change per poll
     @Published var email: String?
     @Published var accountInfo: AccountInfo?
+
+    /// Plan badge text. Ultra reports the Max 20x rate-limit tier and no distinct capability
+    /// (just "claude_max", "chat"); unlike Max 20x it has no 5-hour session limit, so use that.
+    var planLabel: String? {
+        if accountInfo?.rateLimitTier == "default_claude_max_20x", usage?.hasSessionLimit == false {
+            return "Ultra"
+        }
+        return accountInfo?.planLabel
+    }
     @Published var lastUpdated: Date?   // time of the last successful fetch (or cached snapshot)
     @Published var isStale = false      // most recent refresh failed but cached data is still shown
 
@@ -24,6 +33,10 @@ final class UsageService: ObservableObject, Identifiable {
     private var tokenExpiresAt: Date?
     private var pollingTimer: Timer?
     private var resetTimer: Timer?
+    /// Bumped on logout and login. Async work captures it when it starts and drops its result
+    /// if it changed meanwhile, so a request that began before a logout can't restore usage,
+    /// account info, or a token that the logout deleted.
+    private var sessionGeneration = 0
 
     let profile: String
     let oauthService = OAuthService()
@@ -87,7 +100,10 @@ final class UsageService: ObservableObject, Identifiable {
     }
 
     func logout() {
+        sessionGeneration += 1
         TokenStore.clear(profile: profile)
+        UserDefaults.standard.removeObject(forKey: cacheKey)
+        UserDefaults.standard.removeObject(forKey: cacheDateKey)
         cachedAccessToken = nil
         tokenExpiresAt = nil
         resetTimer?.invalidate()
@@ -97,6 +113,21 @@ final class UsageService: ObservableObject, Identifiable {
         needsLogin = true
         email = nil
         accountInfo = nil
+    }
+
+    /// Starts the OAuth flow for this account. The result is dropped if the account was logged
+    /// out or removed while the browser login was still open, so a deleted profile can't be
+    /// brought back by a late callback.
+    func login() {
+        let generation = sessionGeneration
+        oauthService.startLogin { [weak self] result in
+            guard let self else { return }
+            guard generation == self.sessionGeneration else {
+                Log.info("Ignoring login result: account was logged out or removed during login")
+                return
+            }
+            self.handleLoginResult(result)
+        }
     }
 
     func handleLoginResult(_ result: Result<TokenPair, Error>) {
@@ -116,14 +147,24 @@ final class UsageService: ObservableObject, Identifiable {
             accessToken: pair.accessToken,
             refreshToken: pair.refreshToken,
             expiresAt: Int64((Date().timeIntervalSince1970 + Double(pair.expiresIn)) * 1000),
-            email: pair.email
+            email: pair.email,
+            organizationUUID: pair.organizationUUID,
+            organizationName: pair.organizationName
         )
         do {
+            sessionGeneration += 1
             try TokenStore.save(tokens, profile: profile)
             self.cachedAccessToken = pair.accessToken
             self.tokenExpiresAt = Date().addingTimeInterval(Double(pair.expiresIn))
             self.needsLogin = false
             self.error = nil
+            // This may be a different account or org than before (e.g. after a failed refresh),
+            // so drop the previous account's details and let fetchUsage look them up again.
+            self.accountInfo = nil
+            self.email = pair.email
+            self.usage = nil
+            UserDefaults.standard.removeObject(forKey: cacheKey)
+            UserDefaults.standard.removeObject(forKey: cacheDateKey)
             Task { await fetchUsage() }
         } catch {
             self.error = "Failed to save tokens"
@@ -133,10 +174,12 @@ final class UsageService: ObservableObject, Identifiable {
     func fetchUsage() async {
         isLoading = true
         defer { isLoading = false }
+        let generation = sessionGeneration
 
         do {
             let token = try await getValidAccessToken()
             let usageData = try await requestUsage(token: token)
+            guard generation == sessionGeneration else { return }
             let previousUtilization = self.usage?.fiveHour.utilization ?? usageData.fiveHour.utilization
             self.usageDelta = max(0, usageData.fiveHour.utilization - previousUtilization)
             self.usage = usageData
@@ -146,8 +189,11 @@ final class UsageService: ObservableObject, Identifiable {
             self.lastUpdated = Date()
             cacheUsage(usageData)
             scheduleResetFetch(usageData)
-            if accountInfo == nil { await fetchAccountInfo(token: token) }
+            if accountInfo == nil { await fetchAccountInfo(token: token, generation: generation) }
             Log.info("Usage fetched: 5h=\(usageData.fiveHour.utilization)%, 7d=\(usageData.sevenDay.utilization)%")
+        } catch where generation != sessionGeneration {
+            // Logged out or in again while this request was running; its outcome is stale.
+            Log.info("Dropping stale usage result after logout/login")
         } catch is TokenStoreError {
             self.needsLogin = true
             self.error = nil
@@ -159,6 +205,7 @@ final class UsageService: ObservableObject, Identifiable {
             do {
                 let token = try await refreshAndRetry()
                 let usageData = try await requestUsage(token: token)
+                guard generation == sessionGeneration else { return }
                 self.usage = usageData
                 self.error = nil
                 self.isStale = false
@@ -167,6 +214,7 @@ final class UsageService: ObservableObject, Identifiable {
                 scheduleResetFetch(usageData)
                 Log.info("Refresh succeeded, usage: 5h=\(usageData.fiveHour.utilization)%")
             } catch {
+                guard generation == sessionGeneration else { return }
                 self.needsLogin = true
                 self.error = "Session expired. Please login again."
                 TokenStore.clear(profile: profile)
@@ -222,6 +270,7 @@ final class UsageService: ObservableObject, Identifiable {
     }
 
     private func refreshAccessToken(refreshToken: String) async throws -> String {
+        let generation = sessionGeneration
         var request = URLRequest(url: URL(string: tokenUrl)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -247,10 +296,16 @@ final class UsageService: ObservableObject, Identifiable {
         }
 
         let refreshResp = try JSONDecoder().decode(RefreshResponse.self, from: data)
+        // A logout during the request deleted the token; don't write a fresh one back.
+        guard generation == sessionGeneration else { throw CancellationError() }
+        let previous = try? TokenStore.load(profile: profile)
         let newTokens = StoredTokens(
             accessToken: refreshResp.access_token,
             refreshToken: refreshResp.refresh_token ?? refreshToken,
-            expiresAt: Int64((Date().timeIntervalSince1970 + Double(refreshResp.expires_in)) * 1000)
+            expiresAt: Int64((Date().timeIntervalSince1970 + Double(refreshResp.expires_in)) * 1000),
+            email: previous?.email,
+            organizationUUID: previous?.organizationUUID,
+            organizationName: previous?.organizationName
         )
         try TokenStore.save(newTokens, profile: profile)
 
@@ -286,7 +341,7 @@ final class UsageService: ObservableObject, Identifiable {
         return try JSONDecoder().decode(UsageResponse.self, from: data)
     }
 
-    private func fetchAccountInfo(token: String) async {
+    private func fetchAccountInfo(token: String, generation: Int) async {
         var request = URLRequest(url: URL(string: accountUrl)!)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
@@ -294,7 +349,8 @@ final class UsageService: ObservableObject, Identifiable {
 
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse, http.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              generation == sessionGeneration else { return }
 
         let email = json["email_address"] as? String
         var tier: String?
@@ -303,7 +359,13 @@ final class UsageService: ObservableObject, Identifiable {
             // An account can belong to several orgs (e.g. free personal + paid team). Pick the
             // highest-tier one so the badge reflects the plan actually used, not just the first org.
             let orgs = memberships.compactMap { $0["organization"] as? [String: Any] }
-            if let best = orgs.max(by: {
+            for org in orgs {
+                Log.info("Org membership: name=\(org["name"] ?? "?"), rate_limit_tier=\(org["rate_limit_tier"] ?? "nil"), raven_type=\(org["raven_type"] ?? "nil"), billing_type=\(org["billing_type"] ?? "nil"), capabilities=\(org["capabilities"] ?? "nil")")
+            }
+            // Prefer the org this token was issued for; usage is per org, so the badge must match it.
+            let tokenOrg = (try? TokenStore.load(profile: profile))?.organizationUUID
+            let matching = tokenOrg.flatMap { uuid in orgs.first { ($0["uuid"] as? String) == uuid } }
+            if let best = matching ?? orgs.max(by: {
                 AccountInfo.tierRank($0["rate_limit_tier"] as? String) < AccountInfo.tierRank($1["rate_limit_tier"] as? String)
             }) {
                 tier = best["rate_limit_tier"] as? String

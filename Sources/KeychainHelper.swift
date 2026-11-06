@@ -5,6 +5,10 @@ struct StoredTokens: Codable {
     var refreshToken: String?
     var expiresAt: Int64 // milliseconds since epoch
     var email: String?
+    /// Org the OAuth token was issued for. One email can belong to several orgs
+    /// (e.g. a free and a paid personal org), and usage is per org.
+    var organizationUUID: String?
+    var organizationName: String?
 }
 
 enum TokenStore {
