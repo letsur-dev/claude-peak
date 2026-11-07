@@ -116,7 +116,7 @@ Four modes available in settings:
 - **Detailed popover** — 5-hour, 7-day (All models), 7-day (Sonnet) usage + reset timers
 - **Weekly pace indicator** — Shows whether you're on track, have room to spare, or burning too fast
 - **Korean / English messages** — Toggle message language in settings
-- **Settings** — Display format, refresh interval (5/10 min), flame mode, message language
+- **Settings** — Launch at login, display format, refresh interval (5/10 min), flame mode, message language
 - **OAuth PKCE** — Browser-based auth with automatic token refresh
 
 > **Note:** Extra Usage display was removed in v1.4.5 to keep the UI clean. If you'd like it back, [open an issue](https://github.com/letsur-dev/claude-peak/issues).
